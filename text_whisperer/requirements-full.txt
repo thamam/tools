@@ -1,0 +1,10 @@
+# requirements-full.txt
+# Complete installation with all features
+keyboard>=0.13.5
+pyperclip>=1.9.0
+pyaudio>=0.2.14
+openai-whisper>=20231117
+SpeechRecognition>=3.10.0
+torch>=1.9.0
+numpy>=1.21.0
+requests>=2.25.0

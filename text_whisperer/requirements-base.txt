@@ -1,0 +1,4 @@
+# requirements-base.txt
+# Core dependencies required for all installations
+keyboard>=0.13.5
+pyperclip>=1.9.0

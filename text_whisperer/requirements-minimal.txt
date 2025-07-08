@@ -1,0 +1,6 @@
+# requirements-minimal.txt
+# Minimal installation (system audio tools + Google Speech)
+keyboard>=0.13.5
+pyperclip>=1.9.0
+SpeechRecognition>=3.10.0
+requests>=2.25.0

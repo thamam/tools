@@ -1,0 +1,3 @@
+# requirements-audio.txt
+# Audio recording dependencies
+pyaudio>=0.2.14
