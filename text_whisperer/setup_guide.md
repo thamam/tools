@@ -57,7 +57,7 @@ The setup scripts will:
 - **Global Hotkeys**: Use Ctrl+Shift+V from anywhere to start recording
 - **Multiple Speech Engines**: Whisper (local) and Google Speech Recognition (online)
 - **Smart Text Insertion**: Automatically insert transcribed text at cursor position
-- **Voice Training Ready**: Framework for personalized voice recognition
+- **Voice Training System**: Record sample phrases to improve personal recognition accuracy
 - **Memory System**: Stores recent transcriptions with searchable history
 - **Cross-Application**: Works in browsers, documents, chat apps, IDEs, everywhere
 
@@ -156,15 +156,32 @@ If PyAudio fails completely, the tool supports these fallback methods:
 - **ffmpeg** (Cross-platform): `sudo apt-get install ffmpeg`
 - **System audio tools**: The app will detect and use available options
 
-### Permission Issues
+### **Linux Permissions & Hotkeys**
 
-**Linux/macOS**: You may need microphone permissions
+**"You must be root to use this library" Error**:
 ```bash
-# Test microphone access
-arecord -d 5 test.wav && aplay test.wav
+# Quick fix: Run with sudo
+sudo $(which python) voice_transcription.py
+
+# Permanent fix: Add to input group
+sudo usermod -a -G input $USER
+sudo reboot
 ```
 
-**Windows**: Grant microphone access in Windows Privacy Settings
+**"sudo: python: command not found"**:
+```bash
+# Use full python path from virtual environment
+sudo /path/to/your/.venv/bin/python voice_transcription.py
+
+# Or preserve environment variables
+sudo -E env PATH=$PATH python voice_transcription.py
+```
+
+**ALSA Audio Warnings** (harmless):
+```bash
+# Reduce audio system noise (optional)
+ALSA_PCM_CARD=0 ALSA_PCM_DEVICE=0 python voice_transcription.py
+```
 
 ### Speech Recognition Issues
 
@@ -179,7 +196,44 @@ python -c "import whisper; whisper.load_model('base')"
 pip install SpeechRecognition
 ```
 
-## 🎮 Basic Usage
+## 🔑 **Linux Hotkey Setup (Important)**
+
+Global hotkeys on Linux require special permissions for security. Here are your options:
+
+### **Option 1: Quick Test with Sudo**
+```bash
+# Find your virtual environment python path
+which python
+# Example output: /home/user/project/.venv/bin/python
+
+# Run with sudo using full path
+sudo /home/user/project/.venv/bin/python voice_transcription.py
+
+# Or preserve environment
+sudo -E env PATH=$PATH python voice_transcription.py
+```
+
+### **Option 2: Permanent Fix (Recommended)**
+```bash
+# Add your user to input group
+sudo usermod -a -G input $USER
+
+# Logout and login (or reboot) for changes to take effect
+sudo reboot
+
+# Then run normally with hotkeys
+python voice_transcription.py
+```
+
+### **Option 3: Test Without Hotkeys First**
+```bash
+# All features work except global Ctrl+Shift+V
+python voice_transcription.py
+```
+
+**Note**: Even without hotkeys, you can use all features through the GUI buttons!
+
+## 🎮 Usage Instructions
 
 ### 1. Starting the Application
 
@@ -215,7 +269,27 @@ python voice_transcription.py
 - Press `Ctrl+Shift+V` again to stop
 - Text automatically transcribed
 
-### 5. Using Transcribed Text
+### 6. Voice Training (NEW!)
+
+**Access Voice Training**:
+1. Click "⚙️ Settings" → "Start Voice Training"
+2. **Read provided phrases** clearly into microphone
+3. **Complete all 5 sample phrases** for best results
+4. **Training data automatically saved** to improve future recognition
+
+**Training Benefits**:
+- ✅ **Improved accuracy** for your specific voice
+- ✅ **Better recognition** of your speech patterns
+- ✅ **Stored samples** for continuous learning
+- ✅ **Progress tracking** with real-time feedback
+
+**Training Tips**:
+- Record in a **quiet environment**
+- Speak at **normal pace and volume**
+- Use the **same microphone** you'll use regularly
+- Complete **all phrases** for maximum benefit
+
+### 7. Using Transcribed Text
 
 **Copy to Clipboard**:
 - Click "📋 Copy to Clipboard"
