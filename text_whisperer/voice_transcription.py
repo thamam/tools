@@ -43,14 +43,22 @@ class VoiceTranscriptionTool:
         
         self.root = tk.Tk()
         self.root.title("Voice Transcription Tool")
-        self.root.geometry("800x700")  # Made taller for debug panel
+        
+        # Load config first to get window settings
+        self.load_config()
+        
+        # Configure window size
+        window_width = getattr(self, 'window_width', 900)
+        window_height = getattr(self, 'window_height', 800)
+        self.root.geometry(f"{window_width}x{window_height}")
+        self.root.minsize(800, 600)  # Minimum size
         
         # Audio settings
         self.chunk = 1024
         self.format = None  # Will be set during audio init
         self.channels = 1
         self.rate = 16000
-        self.record_seconds = 10  # Max recording length
+        self.record_seconds = 30  # Increased max recording length
         
         # State variables
         self.is_recording = False
@@ -58,9 +66,9 @@ class VoiceTranscriptionTool:
         self.audio_queue = queue.Queue()
         self.transcription_queue = queue.Queue()
         self.recording_thread = None
+        self.recording_start_time = None
         
         # Initialize components
-        self.load_config()  # Load config before other initialization
         self.init_database()
         self.init_audio()
         self.init_speech_engine()
@@ -69,6 +77,9 @@ class VoiceTranscriptionTool:
         
         # Start background threads
         self.start_background_threads()
+        
+        # Bind window close event
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
         
     def setup_logging(self):
         """Setup comprehensive logging"""
@@ -297,6 +308,11 @@ class VoiceTranscriptionTool:
                                      text=f"Engine: {getattr(self, 'current_engine', 'None')}")
         self.engine_label.grid(row=0, column=1, sticky=tk.E)
         
+        # Recording timer/progress
+        self.recording_progress = ttk.Progressbar(status_frame, length=200, mode='determinate')
+        self.recording_progress.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(5, 0))
+        self.recording_progress['maximum'] = self.record_seconds
+        
         # Control frame
         control_frame = ttk.LabelFrame(main_frame, text="Controls", padding="10")
         control_frame.grid(row=2, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 10))
@@ -395,6 +411,9 @@ class VoiceTranscriptionTool:
         self.add_debug_message("🚀 Voice Transcription Tool initialized")
         self.add_debug_message(f"🎤 Audio method: {self.audio_method}")
         self.add_debug_message(f"🧠 Speech engine: {getattr(self, 'current_engine', 'None')}")
+        self.add_debug_message(f"🔥 Hotkey: {getattr(self, 'hotkey_combination', 'None')}")
+        self.add_debug_message(f"🖼️ Window size: {window_width}x{window_height}")
+        self.add_debug_message(f"⏱️ Max recording time: {self.record_seconds}s")
         
     def add_debug_message(self, message):
         """Add a message to debug log"""
@@ -524,21 +543,55 @@ class VoiceTranscriptionTool:
             return
             
         self.is_recording = True
+        self.recording_start_time = time.time()
         self.record_button.configure(text="🛑 Stop Recording")
         self.status_label.configure(text="Recording...", foreground="red")
-        self.add_debug_message(f"🎤 Recording started with {self.audio_method}")
+        self.recording_progress['value'] = 0
+        self.add_debug_message(f"🎤 Recording started with {self.audio_method} (max {self.record_seconds}s)")
         
         # Start recording in a separate thread
         self.recording_thread = threading.Thread(target=self.record_audio, daemon=True)
         self.recording_thread.start()
+        
+        # Start progress updater
+        self.update_recording_progress()
+        
+    def update_recording_progress(self):
+        """Update recording progress bar"""
+        if self.is_recording and self.recording_start_time:
+            elapsed = time.time() - self.recording_start_time
+            self.recording_progress['value'] = elapsed
+            
+            # Show remaining time
+            remaining = max(0, self.record_seconds - elapsed)
+            self.status_label.configure(text=f"Recording... {remaining:.1f}s left", foreground="red")
+            
+            # Check if we're approaching the limit
+            if remaining <= 3:
+                self.status_label.configure(text=f"Recording... {remaining:.1f}s left (finishing soon)", 
+                                           foreground="orange")
+                
+            # Auto-stop if max time reached
+            if elapsed >= self.record_seconds:
+                self.add_debug_message("⏰ Maximum recording time reached - auto-stopping")
+                self.stop_recording()
+                return
+                
+            # Schedule next update
+            self.root.after(100, self.update_recording_progress)
+        else:
+            # Reset progress bar
+            self.recording_progress['value'] = 0
         
     def stop_recording(self):
         """Stop audio recording"""
         self.logger.info("Stop recording requested")
         self.add_debug_message("🛑 Stopping recording...")
         self.is_recording = False
+        self.recording_start_time = None
         self.record_button.configure(text="🎤 Start Recording")
         self.status_label.configure(text="Processing...", foreground="orange")
+        self.recording_progress['value'] = 0
         
     def record_audio(self):
         """Record audio from microphone using available method"""
@@ -862,22 +915,36 @@ class VoiceTranscriptionTool:
         hotkey_frame = ttk.LabelFrame(settings_window, text="Hotkey Configuration", padding="10")
         hotkey_frame.pack(fill="x", padx=10, pady=10)
         
-        current_hotkey = getattr(self, 'hotkey_combination', 'ctrl+shift+v')
+        current_hotkey = getattr(self, 'hotkey_combination', 'f9')
         ttk.Label(hotkey_frame, text=f"Current hotkey: {current_hotkey}").pack(anchor="w")
         
-        # Hotkey presets
+        # Hotkey presets - ONE-HANDED OPTIONS PRIORITIZED
         hotkey_var = tk.StringVar(value=current_hotkey)
         
         hotkey_options = [
-            ("ctrl+shift+v", "Ctrl+Shift+V (default)"),
-            ("ctrl+alt+v", "Ctrl+Alt+V (gaming-friendly)"), 
-            ("ctrl+`", "Ctrl+` (backtick)"),
-            ("f11", "F11 function key"),
-            ("ctrl+shift+m", "Ctrl+Shift+M (microphone)"),
-            ("alt+space", "Alt+Space (quick access)")
+            ("f9", "F9 - Easy one-handed (recommended)"),
+            ("f10", "F10 - One-handed alternative"),
+            ("f11", "F11 - One-handed (may conflict with fullscreen)"),
+            ("f12", "F12 - One-handed"),
+            ("`", "` (backtick) - One-handed, top-left"),
+            ("tab", "Tab key - One-handed (may conflict)"),
+            ("capslock", "Caps Lock - One-handed (Linux only)"),
+            ("ctrl+`", "Ctrl+` - Easy two-handed"),
+            ("alt+space", "Alt+Space - Easy two-handed"),
+            ("ctrl+alt+v", "Ctrl+Alt+V - Two-handed (gaming safe)"),
+            ("ctrl+shift+m", "Ctrl+Shift+M - Two-handed (M for mic)")
         ]
         
-        for value, label in hotkey_options:
+        ttk.Label(hotkey_frame, text="One-handed options (recommended):", 
+                 font=("Arial", 9, "bold")).pack(anchor="w", pady=(5,0))
+        
+        for value, label in hotkey_options[:7]:  # One-handed options
+            ttk.Radiobutton(hotkey_frame, text=label, variable=hotkey_var, value=value).pack(anchor="w")
+        
+        ttk.Label(hotkey_frame, text="Two-handed options:", 
+                 font=("Arial", 9, "bold")).pack(anchor="w", pady=(10,0))
+        
+        for value, label in hotkey_options[7:]:  # Two-handed options
             ttk.Radiobutton(hotkey_frame, text=label, variable=hotkey_var, value=value).pack(anchor="w")
         
         # Custom hotkey entry
@@ -891,6 +958,7 @@ class VoiceTranscriptionTool:
             custom_value = custom_hotkey_entry.get().strip()
             if custom_value:
                 hotkey_var.set(custom_value)
+                self.add_debug_message(f"🔧 Custom hotkey set: {custom_value}")
         
         ttk.Button(custom_frame, text="Use Custom", command=set_custom_hotkey).pack(side="left", padx=5)
         
@@ -898,9 +966,90 @@ class VoiceTranscriptionTool:
         training_frame = ttk.LabelFrame(settings_window, text="Voice Training", padding="10")
         training_frame.pack(fill="x", padx=10, pady=10)
         
-        ttk.Label(training_frame, text="Record voice samples to improve accuracy:").pack(anchor="w")
-        ttk.Button(training_frame, text="Start Voice Training", 
-                  command=self.start_voice_training).pack(pady=5)
+        # Check if we have existing voice training data
+        existing_profiles = self.get_voice_profiles()
+        if existing_profiles:
+            ttk.Label(training_frame, text=f"✅ Found {len(existing_profiles)} saved voice profile(s)").pack(anchor="w")
+        else:
+            ttk.Label(training_frame, text="No voice training data found").pack(anchor="w")
+            
+        ttk.Label(training_frame, text="Record voice samples to improve accuracy:").pack(anchor="w", pady=(5,0))
+        
+        training_controls = ttk.Frame(training_frame)
+        training_controls.pack(fill="x", pady=5)
+        
+        ttk.Button(training_controls, text="🎤 Start Voice Training", 
+                  command=self.start_voice_training).pack(side="left", padx=(0, 10))
+        
+        if existing_profiles:
+            ttk.Button(training_controls, text="🗑️ Clear Training Data", 
+                      command=self.clear_voice_training).pack(side="left", padx=(0, 10))
+                      
+        # Window size configuration
+        window_frame = ttk.LabelFrame(settings_window, text="Window Settings", padding="10")
+        window_frame.pack(fill="x", padx=10, pady=10)
+        
+        # Current window size
+        current_geometry = self.root.geometry()
+        width, height = current_geometry.split('+')[0].split('x')
+        
+        size_frame = ttk.Frame(window_frame)
+        size_frame.pack(fill="x")
+        
+        ttk.Label(size_frame, text="Window Size:").pack(side="left")
+        
+        width_var = tk.StringVar(value=width)
+        height_var = tk.StringVar(value=height)
+        
+        ttk.Label(size_frame, text="Width:").pack(side="left", padx=(10, 0))
+        width_entry = ttk.Entry(size_frame, textvariable=width_var, width=8)
+        width_entry.pack(side="left", padx=5)
+        
+        ttk.Label(size_frame, text="Height:").pack(side="left", padx=(10, 0))
+        height_entry = ttk.Entry(size_frame, textvariable=height_var, width=8)
+        height_entry.pack(side="left", padx=5)
+        
+        def apply_window_size():
+            try:
+                new_width = int(width_var.get())
+                new_height = int(height_var.get())
+                
+                # Validate size
+                if new_width < 800 or new_height < 600:
+                    messagebox.showwarning("Invalid Size", "Minimum size is 800x600")
+                    return
+                    
+                self.root.geometry(f"{new_width}x{new_height}")
+                self.window_width = new_width
+                self.window_height = new_height
+                self.add_debug_message(f"🖼️ Window resized to {new_width}x{new_height}")
+                
+            except ValueError:
+                messagebox.showerror("Invalid Input", "Please enter valid numbers for width and height")
+        
+        ttk.Button(size_frame, text="Apply Size", command=apply_window_size).pack(side="left", padx=10)
+        
+        # Preset sizes
+        presets_frame = ttk.Frame(window_frame)
+        presets_frame.pack(fill="x", pady=(5, 0))
+        
+        ttk.Label(presets_frame, text="Presets:").pack(side="left")
+        
+        preset_sizes = [
+            ("Compact", 800, 600),
+            ("Standard", 900, 700), 
+            ("Large", 1000, 800),
+            ("Extra Large", 1200, 900)
+        ]
+        
+        for name, w, h in preset_sizes:
+            def set_preset(width=w, height=h):
+                width_var.set(str(width))
+                height_var.set(str(height))
+                apply_window_size()
+                
+            ttk.Button(presets_frame, text=name, 
+                      command=lambda w=w, h=h: set_preset(w, h)).pack(side="left", padx=2)
         
         # Audio settings
         audio_frame = ttk.LabelFrame(settings_window, text="Audio Settings", padding="10")
@@ -911,56 +1060,136 @@ class VoiceTranscriptionTool:
         
         # Save button
         def save_settings():
-            self.logger.info("Saving settings...")
+            self.logger.info("=== SAVING SETTINGS ===")
             self.add_debug_message("💾 Saving settings...")
             
             # Update speech engine
             new_engine = engine_var.get()
             old_engine = getattr(self, 'current_engine', '')
             
+            self.logger.info(f"Engine change requested: '{old_engine}' → '{new_engine}'")
+            self.add_debug_message(f"🔄 Engine change: '{old_engine}' → '{new_engine}'")
+            
             if new_engine != old_engine:
-                self.logger.info(f"Changing speech engine from {old_engine} to {new_engine}")
-                self.add_debug_message(f"🔄 Switching engine: {old_engine} → {new_engine}")
-                
                 # Validate engine availability
-                if new_engine == "whisper" and not self.whisper_model:
-                    self.add_debug_message("❌ Whisper not available")
-                    messagebox.showerror("Error", "Whisper engine not available!")
-                    return
-                elif new_engine == "google" and not self.speech_recognizer:
-                    self.add_debug_message("❌ Google Speech not available")
-                    messagebox.showerror("Error", "Google Speech Recognition not available!")
-                    return
+                if new_engine == "whisper":
+                    if not self.whisper_model:
+                        error_msg = "Whisper engine not available! Please install: pip install openai-whisper"
+                        self.logger.error(error_msg)
+                        self.add_debug_message(f"❌ {error_msg}")
+                        messagebox.showerror("Error", error_msg)
+                        return
+                    else:
+                        self.logger.info("✅ Whisper engine validated and available")
+                        
+                elif new_engine == "google":
+                    if not self.speech_recognizer:
+                        # Try to initialize Google Speech Recognition
+                        try:
+                            import speech_recognition as sr
+                            self.speech_recognizer = sr.Recognizer()
+                            self.logger.info("✅ Google Speech Recognition initialized on demand")
+                        except ImportError:
+                            error_msg = "Google Speech Recognition not available! Please install: pip install SpeechRecognition"
+                            self.logger.error(error_msg)
+                            self.add_debug_message(f"❌ {error_msg}")
+                            messagebox.showerror("Error", error_msg)
+                            return
+                    else:
+                        self.logger.info("✅ Google Speech Recognition validated and available")
                 
+                # Apply the change
                 self.current_engine = new_engine
                 self.engine_label.configure(text=f"Engine: {new_engine}")
+                self.logger.info(f"✅ Engine successfully changed to: {new_engine}")
                 self.add_debug_message(f"✅ Engine changed to: {new_engine}")
+            else:
+                self.logger.info("No engine change requested")
+                self.add_debug_message("ℹ️ No engine change requested")
             
             # Update hotkey
             new_hotkey = hotkey_var.get()
-            old_hotkey = getattr(self, 'hotkey_combination', 'ctrl+shift+v')
+            old_hotkey = getattr(self, 'hotkey_combination', 'f9')
+            
+            self.logger.info(f"Hotkey change requested: '{old_hotkey}' → '{new_hotkey}'")
             
             if new_hotkey != old_hotkey:
-                self.logger.info(f"Changing hotkey from {old_hotkey} to {new_hotkey}")
+                self.logger.info(f"Updating hotkey from {old_hotkey} to {new_hotkey}")
                 self.update_hotkey(new_hotkey)
+            else:
+                self.logger.info("No hotkey change requested")
                 
+            # Save window size
+            self.window_width = int(width_var.get())
+            self.window_height = int(height_var.get())
+            
             # Save all settings to config file
             self.save_config()
-            self.add_debug_message("✅ Settings saved successfully")
+            self.logger.info("=== SETTINGS SAVED SUCCESSFULLY ===")
+            self.add_debug_message("✅ All settings saved successfully")
             settings_window.destroy()
             
         ttk.Button(settings_window, text="Save Settings", 
                   command=save_settings).pack(pady=20)
         
+    def get_voice_profiles(self):
+        """Get existing voice training profiles"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute('SELECT * FROM voice_profiles ORDER BY last_updated DESC')
+            profiles = cursor.fetchall()
+            conn.close()
+            
+            return profiles
+            
+        except Exception as e:
+            self.logger.error(f"Failed to get voice profiles: {e}")
+            return []
+            
+    def clear_voice_training(self):
+        """Clear all voice training data"""
+        if messagebox.askyesno("Clear Training Data", 
+                              "Are you sure you want to delete all voice training data?\n\n"
+                              "This cannot be undone."):
+            try:
+                conn = sqlite3.connect(self.db_path)
+                cursor = conn.cursor()
+                cursor.execute('DELETE FROM voice_profiles')
+                conn.commit()
+                conn.close()
+                
+                self.add_debug_message("🗑️ Voice training data cleared")
+                messagebox.showinfo("Success", "Voice training data cleared successfully.")
+                
+            except Exception as e:
+                self.logger.error(f"Failed to clear voice training data: {e}")
+                self.add_debug_message(f"❌ Failed to clear training data: {e}")
+                
+    def on_closing(self):
+        """Handle window closing"""
+        self.logger.info("Application closing...")
+        self.save_config()  # Save current window size and settings
+        self.cleanup()
+        self.root.destroy()
+        
     def save_config(self):
         """Save configuration to file"""
         try:
+            # Get current window size
+            geometry = self.root.geometry()
+            width, height = geometry.split('+')[0].split('x')
+            
             config = {
-                'hotkey_combination': getattr(self, 'hotkey_combination', 'ctrl+shift+v'),
+                'hotkey_combination': getattr(self, 'hotkey_combination', 'f9'),
                 'current_engine': getattr(self, 'current_engine', ''),
                 'audio_rate': self.rate,
                 'audio_channels': self.channels,
                 'audio_method': getattr(self, 'audio_method', ''),
+                'window_width': int(width),
+                'window_height': int(height),
+                'record_seconds': getattr(self, 'record_seconds', 30),
                 'last_updated': datetime.now().isoformat()
             }
             
@@ -968,7 +1197,7 @@ class VoiceTranscriptionTool:
             with open(config_file, 'w') as f:
                 json.dump(config, f, indent=2)
                 
-            self.logger.info(f"Configuration saved to {config_file}")
+            self.logger.info(f"Configuration saved to {config_file}: {config}")
             
         except Exception as e:
             self.logger.error(f"Failed to save config: {e}")
@@ -980,31 +1209,45 @@ class VoiceTranscriptionTool:
             with open(config_file, 'r') as f:
                 config = json.load(f)
                 
-            self.hotkey_combination = config.get('hotkey_combination', 'ctrl+shift+v')
+            self.hotkey_combination = config.get('hotkey_combination', 'f9')
             self.current_engine = config.get('current_engine', '')
+            self.window_width = config.get('window_width', 900)
+            self.window_height = config.get('window_height', 800)
+            self.record_seconds = config.get('record_seconds', 30)
             
             # Apply other config settings as needed
             saved_rate = config.get('audio_rate', 16000)
-            if saved_rate != self.rate:
+            if saved_rate != getattr(self, 'rate', 16000):
                 self.rate = saved_rate
                 
-            print(f"Configuration loaded: engine={self.current_engine}, hotkey={self.hotkey_combination}")
+            self.logger.info(f"Configuration loaded: engine={self.current_engine}, "
+                           f"hotkey={self.hotkey_combination}, "
+                           f"window={self.window_width}x{self.window_height}")
             
         except FileNotFoundError:
             # Use defaults if config file doesn't exist
-            self.hotkey_combination = 'ctrl+shift+v'
+            self.hotkey_combination = 'f9'  # Changed default to one-handed
             self.current_engine = ''
-            print("No config file found, using defaults")
+            self.window_width = 900
+            self.window_height = 800
+            self.record_seconds = 30
+            self.logger.info("No config file found, using defaults")
             
         except json.JSONDecodeError as e:
-            print(f"Config file corrupted, using defaults: {e}")
-            self.hotkey_combination = 'ctrl+shift+v'
+            self.logger.error(f"Config file corrupted, using defaults: {e}")
+            self.hotkey_combination = 'f9'
             self.current_engine = ''
+            self.window_width = 900
+            self.window_height = 800
+            self.record_seconds = 30
             
         except Exception as e:
-            print(f"Failed to load config: {e}")
-            self.hotkey_combination = 'ctrl+shift+v'
+            self.logger.error(f"Failed to load config: {e}")
+            self.hotkey_combination = 'f9'
             self.current_engine = ''
+            self.window_width = 900
+            self.window_height = 800
+            self.record_seconds = 30
         
     def start_voice_training(self):
         """Start voice training process"""

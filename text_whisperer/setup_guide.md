@@ -54,12 +54,15 @@ The setup scripts will:
 
 ## 🎯 Features
 
-- **Global Hotkeys**: Use Ctrl+Shift+V from anywhere to start recording
+- **One-Handed Hotkeys**: Default F9 key for easy single-handed operation
 - **Multiple Speech Engines**: Whisper (local) and Google Speech Recognition (online)
 - **Smart Text Insertion**: Automatically insert transcribed text at cursor position
 - **Voice Training System**: Record sample phrases to improve personal recognition accuracy
 - **Memory System**: Stores recent transcriptions with searchable history
 - **Cross-Application**: Works in browsers, documents, chat apps, IDEs, everywhere
+- **Configurable Window Size**: Resize and save your preferred window dimensions
+- **Extended Recording**: Up to 30 seconds per recording with progress indicator
+- **Comprehensive Debugging**: Real-time debug panel and detailed logging
 
 ## 📋 Requirements Files
 
@@ -156,32 +159,52 @@ If PyAudio fails completely, the tool supports these fallback methods:
 - **ffmpeg** (Cross-platform): `sudo apt-get install ffmpeg`
 - **System audio tools**: The app will detect and use available options
 
-### **Linux Permissions & Hotkeys**
+### **Recording Issues**
 
-**"You must be root to use this library" Error**:
-```bash
-# Quick fix: Run with sudo
-sudo $(which python) voice_transcription.py
+**"Recording stops after certain length"**:
+- Check debug panel for timeout messages
+- Recording auto-stops at 30 seconds (configurable)
+- Look for "⏰ Maximum recording time reached" in debug log
 
-# Permanent fix: Add to input group
-sudo usermod -a -G input $USER
-sudo reboot
-```
+**"Button doesn't change back to Start Recording"**:
+- Fixed with new progress indicator
+- Recording progress bar shows time remaining
+- Button automatically resets when recording completes
 
-**"sudo: python: command not found"**:
-```bash
-# Use full python path from virtual environment
-sudo /path/to/your/.venv/bin/python voice_transcription.py
+**"Voice recognition not working"**:
+1. Click "🧪 Test Microphone" in debug panel
+2. Check "📋 Audio Devices" to see available mics
+3. Try switching speech engines in Settings
+4. Check debug log for transcription errors
 
-# Or preserve environment variables
-sudo -E env PATH=$PATH python voice_transcription.py
-```
+### **Settings Not Saving**
 
-**ALSA Audio Warnings** (harmless):
-```bash
-# Reduce audio system noise (optional)
-ALSA_PCM_CARD=0 ALSA_PCM_DEVICE=0 python voice_transcription.py
-```
+**"Google Speech engine doesn't stick"**:
+- Fixed with enhanced logging
+- Check debug panel for "✅ Engine changed to: google"
+- Settings now validate engine availability before switching
+- Config file saves all preferences automatically
+
+### **Hotkey Problems**
+
+**"Hotkeys not working"**:
+1. Enable hotkey mode: "🔥 Toggle Hotkey Mode"
+2. Check debug panel for hotkey registration messages
+3. Try one-handed options: F9, F10, F11, F12
+4. Avoid Ctrl+Shift+V (conflicts with terminal paste)
+
+**"Need one-handed operation"**:
+- Use F9 (new default) - easy thumb reach
+- F10, F11, F12 alternatives
+- ` (backtick) for top-left access
+
+### **Window Size Issues**
+
+**"Window too small/large"**:
+1. Settings → "Window Settings"
+2. Choose preset: Compact, Standard, Large, Extra Large
+3. Or set custom width x height
+4. Size automatically saved for next startup
 
 ### Speech Recognition Issues
 
@@ -227,11 +250,20 @@ python voice_transcription.py
 
 ### **Option 3: Test Without Hotkeys First**
 ```bash
-# All features work except global Ctrl+Shift+V
+# All features work except global hotkeys
 python voice_transcription.py
 ```
 
 **Note**: Even without hotkeys, you can use all features through the GUI buttons!
+
+### **🎯 New One-Handed Hotkeys (Default: F9)**
+
+The app now defaults to **F9** for one-handed operation! Other one-handed options:
+- **F9, F10, F11, F12** - Function keys (easy reach)
+- **` (backtick)** - Top-left corner key
+- **Tab** - Easy access (may conflict with some apps)
+
+**Why one-handed?** Allows you to keep typing with one hand while activating recording with the other!
 
 ## 🎮 Usage Instructions
 
@@ -289,7 +321,39 @@ python voice_transcription.py
 - Use the **same microphone** you'll use regularly
 - Complete **all phrases** for maximum benefit
 
-### 7. Using Transcribed Text
+### 8. **Using the Debug Panel (NEW!)**
+
+**Real-time Debugging**:
+- **Debug Log Panel** at bottom shows live system status
+- **Green ✅** = Success, **Red ❌** = Error, **Orange ⚠️** = Warning
+- **Timestamps** on all messages for troubleshooting
+
+**Debug Controls**:
+- **🧪 Test Microphone** - Verify recording functionality
+- **📋 Audio Devices** - List all available microphones  
+- **🗑️ Clear Debug** - Clear the debug log
+- **💾 Save Log** - Export debug log to file
+
+**Troubleshooting Workflow**:
+1. **Problem occurs** → Check debug panel for error messages
+2. **Test components** → Use microphone test and device list
+3. **Try different settings** → Switch engines, change hotkeys
+4. **Save logs** → Export debug info if issues persist
+
+### 9. **Window Configuration (NEW!)**
+
+**Resize Window**:
+- Settings → "Window Settings"
+- **Presets**: Compact (800x600), Standard (900x700), Large (1000x800), Extra Large (1200x900)
+- **Custom Size**: Enter specific width and height
+- **Auto-save**: Size preference saved for next startup
+
+**Why Configure Size?**
+- **Compact**: Minimal screen space usage
+- **Large**: Better visibility of transcriptions and debug info
+- **Custom**: Perfect fit for your workflow and screen resolution
+
+### 10. Using Transcribed Text
 
 **Copy to Clipboard**:
 - Click "📋 Copy to Clipboard"
