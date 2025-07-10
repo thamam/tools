@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python test:*)",
+      "Bash(true)",
+      "Bash(python:*)",
+      "Bash(chmod:*)",
+      "Bash(./launch.sh)"
+    ],
+    "deny": []
+  }
+}

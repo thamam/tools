@@ -1,52 +1,79 @@
-Excellent! Let me start building your voice-activated transcription tool. I'll begin with the core engine and then we can expand it with all the advanced features.Perfect! I've built your complete voice transcription tool with all the core features you requested. Here's what's included:
+# Voice Transcription Tool v2.0
 
-## **🎯 Key Features Delivered**
+A powerful speech-to-text application with global hotkeys, voice training, and modular architecture.
 
-**Voice Capture & Speech-to-Text**
-- Supports both Whisper (local, high-quality) and Google Speech Recognition
-- Real-time audio recording with configurable settings
-- Background processing for smooth operation
-
-**Global Keyboard Shortcuts**
-- **Ctrl+Shift+V** triggers recording from anywhere
-- Toggleable hotkey mode for system-wide operation
-- Works across all applications
-
-**Smart Text Insertion**
-- "Insert at Cursor" automatically places text where you're typing
-- Copy to clipboard functionality
-- Real-time transcription display
-
-**Memory & History**
-- SQLite database stores your last 50+ transcriptions
-- Timestamped history with search capabilities
-- Persistent storage across sessions
-
-**Voice Training Ready**
-- Database structure prepared for voice profiles
-- Settings panel for future voice adaptation
-- Framework for custom vocabulary learning
-
-## **🛠 Installation Requirements**
+## 🚀 Quick Start
 
 ```bash
-# Core dependencies
-pip install pyaudio keyboard pyperclip
+# Install dependencies
+pip install -r voice_transcription_tool/requirements.txt
 
-# Choose your speech engine (or install both):
-pip install openai-whisper          # For local, high-quality transcription
-pip install SpeechRecognition       # For online Google Speech Recognition
+# Run with global hotkeys (recommended)
+./voice_transcription_tool/launch.sh
+
+# Run with GUI password prompt
+./voice_transcription_tool/launch-gui.sh
+
+# Run without hotkeys (for testing)
+./voice_transcription_tool/run.sh
+
+# Or install as package
+pip install -e .
+voice-transcription
 ```
 
-## **🚀 How to Use**
+### Launch Options
 
-1. **Run the application** - The GUI will open with all controls
-2. **Enable hotkey mode** - Click "Toggle Hotkey Mode" 
-3. **Start transcribing** - Press Ctrl+Shift+V anywhere to record
-4. **Insert text** - Use "Insert at Cursor" to place transcription where you're typing
+1. **`launch.sh`** - Terminal launcher with sudo (hotkeys work)
+2. **`launch-gui.sh`** - GUI password prompt (hotkeys work)
+3. **`run.sh`** - No sudo required (hotkeys disabled)
+4. **`voice-transcription.desktop`** - Desktop entry for app menu
 
-The tool runs as a background service and works across all applications - browsers, documents, chat apps, IDEs, everything!
+## 🏗️ Architecture
 
-**Ready to test it?** Save the code as `voice_transcription.py` and run it. The tool will automatically detect which speech engines you have installed and guide you through setup.
+This is a refactored version with modular architecture:
 
-Would you like me to add any specific features or explain how to extend the voice training capabilities?
+- **config/**: Configuration and database management
+- **audio/**: Audio recording and device management  
+- **speech/**: Speech recognition engines and training
+- **gui/**: User interface components
+- **utils/**: Utilities (hotkeys, logging)
+
+## 📦 Features
+
+- ✅ Multiple speech engines (Whisper, Google Speech)
+- ✅ Global hotkeys (F9 default, one-handed)
+- ✅ Voice training for improved accuracy
+- ✅ Cross-platform audio recording
+- ✅ Configurable window size and settings
+- ✅ Comprehensive debug logging
+- ✅ Modular, maintainable codebase
+
+## 🔧 Development
+
+```bash
+# Run tests (when implemented)
+python -m pytest tests/
+
+# Run specific module
+python -c "from audio.recorder import AudioRecorder; print('Audio OK')"
+
+# Debug mode
+python voice_transcription_tool/main.py --debug
+```
+
+## 📋 Migration from v1.0
+
+If you're upgrading from the monolithic version:
+
+1. Your settings will be preserved (voice_transcription_config.json)
+2. Your voice training data will be preserved (voice_transcriptions.db) 
+3. All features remain the same, just better organized
+
+## 🎤 Usage
+
+1. **Start the app**: `python voice_transcription_tool/main.py`
+2. **Test recording**: Click "🎤 Start Recording"
+3. **Enable hotkeys**: Click "🔥 Toggle Hotkey Mode"
+4. **Use F9 globally**: Press F9 from any application to record
+5. **Train your voice**: Settings → "Start Voice Training"
