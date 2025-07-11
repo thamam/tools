@@ -31,7 +31,7 @@ A modern, AI-powered voice transcription application with wake word detection, v
 ### Option 1: Install from .deb Package (Ubuntu/Debian)
 ```bash
 # Download the .deb package, then:
-sudo apt install ./voice-transcription-tool_2.0.0.deb
+sudo apt install ./voice-transcription-tool_2.0.1.deb
 ```
 
 ### Option 2: Run from Source

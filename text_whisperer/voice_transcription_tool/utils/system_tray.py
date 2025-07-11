@@ -6,7 +6,7 @@ Provides system tray icon with context menu for background operation.
 
 import logging
 import threading
-from typing import Optional, Callable
+from typing import Optional, Callable, TYPE_CHECKING
 from pathlib import Path
 
 try:
@@ -15,6 +15,8 @@ try:
     PYSTRAY_AVAILABLE = True
 except ImportError:
     PYSTRAY_AVAILABLE = False
+    if TYPE_CHECKING:
+        from PIL import Image
 
 
 class SystemTrayManager:
@@ -42,7 +44,7 @@ class SystemTrayManager:
         if not PYSTRAY_AVAILABLE:
             self.logger.warning("pystray not available - system tray disabled")
     
-    def create_icon(self) -> Optional[Image.Image]:
+    def create_icon(self) -> Optional['Image.Image']:
         """Create a simple tray icon."""
         try:
             # Create a simple microphone icon

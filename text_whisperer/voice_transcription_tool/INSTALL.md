@@ -6,13 +6,13 @@
 
 ```bash
 # Install the package
-sudo dpkg -i voice-transcription-tool_2.0.0.deb
+sudo dpkg -i voice-transcription-tool_2.0.1.deb
 
 # Install dependencies (required)
 sudo apt-get install -f
 
 # Or install everything in one command:
-sudo apt install ./voice-transcription-tool_2.0.0.deb
+sudo apt install ./voice-transcription-tool_2.0.1.deb
 ```
 
 ### Option 2: Manual Installation
@@ -85,7 +85,7 @@ The package automatically installs Python dependencies during installation. If y
 ```bash
 # Reinstall the package
 sudo dpkg -r voice-transcription-tool
-sudo dpkg -i voice-transcription-tool_2.0.0.deb
+sudo dpkg -i voice-transcription-tool_2.0.1.deb
 sudo apt-get install -f
 ```
 
