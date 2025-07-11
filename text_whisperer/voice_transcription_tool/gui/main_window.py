@@ -398,6 +398,14 @@ class VoiceTranscriptionApp:
         if self.config.get('auto_paste_mode', False):
             self.autopaste_manager.capture_active_window()
         
+        # Stop wake word detection temporarily to free audio device
+        self.wake_word_was_active_before_recording = False
+        if hasattr(self, 'wake_word_detector') and self.wake_word_detector:
+            if self.wake_word_detector.is_listening:
+                self.wake_word_was_active_before_recording = True
+                self.wake_word_detector.stop_listening()
+                self._add_debug_message("⏸️ Paused wake word detection for recording")
+        
         self.is_recording = True
         self.recording_start_time = time.time()
         self.record_button.configure(text="🛑 Stop Recording")
@@ -437,6 +445,25 @@ class VoiceTranscriptionApp:
         
         # Stop the recorder
         self.audio_recorder.stop_recording()
+    
+    def _restart_wake_word_if_needed(self):
+        """Restart wake word detection if it was active before recording."""
+        if hasattr(self, 'wake_word_was_active_before_recording') and self.wake_word_was_active_before_recording:
+            if hasattr(self, 'wake_word_detector') and self.wake_word_detector:
+                # Small delay to ensure audio device is fully released
+                self.root.after(500, self._restart_wake_word_detection)
+    
+    def _restart_wake_word_detection(self):
+        """Actually restart the wake word detection."""
+        if self.wake_word_detector.start_listening():
+            self._add_debug_message("▶️ Resumed wake word detection")
+            wake_words = self.config.get('wake_words', ["hey computer"])
+            self._add_debug_message(f"🎯 Listening for wake words: {', '.join(wake_words)}")
+        else:
+            self._add_debug_message("⚠️ Failed to resume wake word detection")
+        
+        # Reset the flag
+        self.wake_word_was_active_before_recording = False
     
     def _setup_wake_word_detector(self):
         """Initialize wake word detector."""
@@ -520,10 +547,14 @@ class VoiceTranscriptionApp:
                 self.audio_queue.put(audio_file)
             else:
                 self._add_debug_message("❌ Recording failed")
+                # Restart wake word detection if recording failed
+                self._restart_wake_word_if_needed()
                 
         except Exception as e:
             self.logger.error(f"Recording thread error: {e}")
             self._add_debug_message(f"❌ Recording error: {e}")
+            # Restart wake word detection if recording error
+            self._restart_wake_word_if_needed()
         finally:
             # Ensure UI is reset
             self.root.after(0, self._reset_recording_ui)
@@ -712,6 +743,10 @@ class VoiceTranscriptionApp:
                         "Voice Transcription Complete",
                         f"'{result['text'][:50]}{'...' if len(result['text']) > 50 else ''}'"
                     )
+                
+                # If auto-paste is not enabled, restart wake word detection now
+                if not self.config.get('auto_paste_mode', False):
+                    self._restart_wake_word_if_needed()
                     
             except Exception as e:
                 self.logger.error(f"Auto clipboard copy failed: {e}")
@@ -724,6 +759,9 @@ class VoiceTranscriptionApp:
         else:
             self._add_debug_message("⚠️ Auto-paste failed - use Ctrl+V to paste")
             self.status_label.configure(text="Ready to paste (Ctrl+V)", foreground="orange")
+        
+        # Restart wake word detection if it was active before recording
+        self._restart_wake_word_if_needed()
     
     def _copy_to_clipboard(self):
         """

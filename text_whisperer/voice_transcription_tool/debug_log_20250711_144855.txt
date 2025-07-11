@@ -1,0 +1,18 @@
+[14:48:28] 🎯 Using simple wake word detection
+[14:48:28] 🚀 Voice Transcription Tool initialized
+[14:48:28] 🎤 Audio method: pyaudio
+[14:48:28] 🧠 Speech engine: whisper
+[14:48:28] 🔥 Hotkey: capslock
+[14:48:28] 🖥️ System tray enabled
+[14:48:29] 🎯 Listening for wake words: hey Noam
+[14:48:29] 🎯 Wake word detected: 'speech detected' (score: 1.00)
+[14:48:30] 🎤 Recording started
+[14:48:31] ❌ Recording failed
+[14:48:45] 🎤 Recording started
+[14:48:45] 🎯 Wake word detected: 'speech detected' (score: 1.00)
+[14:48:46] ❌ Recording failed
+[14:48:49] 🎤 Recording started
+[14:48:50] ❌ Recording failed
+[14:48:50] 🎤 Recording started
+[14:48:51] ❌ Recording failed
+
