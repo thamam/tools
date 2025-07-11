@@ -8,8 +8,11 @@
 # Install the package
 sudo dpkg -i voice-transcription-tool_2.0.0.deb
 
-# Fix any dependency issues (if needed)
+# Install dependencies (required)
 sudo apt-get install -f
+
+# Or install everything in one command:
+sudo apt install ./voice-transcription-tool_2.0.0.deb
 ```
 
 ### Option 2: Manual Installation

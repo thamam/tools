@@ -28,7 +28,13 @@ A modern, AI-powered voice transcription application with wake word detection, v
 
 ## 📦 Installation
 
-### Quick Install
+### Option 1: Install from .deb Package (Ubuntu/Debian)
+```bash
+# Download the .deb package, then:
+sudo apt install ./voice-transcription-tool_2.0.0.deb
+```
+
+### Option 2: Run from Source
 ```bash
 # Clone or download the project
 cd voice_transcription_tool
@@ -36,20 +42,16 @@ cd voice_transcription_tool
 # Install dependencies
 pip install -r requirements.txt
 
-# Install as desktop application
-python install_package.py
+# Run the application
+python run.py
+# Or with debug output
+python run.py --debug
 ```
 
-### Manual Setup
+### Option 3: Desktop Integration
 ```bash
-# Install Python dependencies
-pip install torch whisper pyaudio speech_recognition pyperclip keyboard pystray pygame
-
-# Optional: Wake word detection
-pip install openwakeword onnxruntime
-
-# Run directly
-python main.py
+# Install as a desktop application (creates menu entry)
+python install_package.py
 ```
 
 ## 🎮 Usage

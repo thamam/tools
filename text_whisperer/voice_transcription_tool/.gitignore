@@ -1,0 +1,83 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Testing
+htmlcov/
+.coverage
+.coverage.*
+.cache
+.pytest_cache/
+.tox/
+coverage.xml
+*.cover
+.hypothesis/
+
+# Logs
+*.log
+logs/
+debug_log_*.txt
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Configuration
+voice_transcription_config.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Package build files
+*.deb
+voice-transcription-tool_*/
+
+# Temporary files
+*.tmp
+*.bak
+.cache/
+
+# Test output files
+test_*.py
+!tests/test_*.py
+
+# Launch scripts (keeping only essential ones)
+launch-*.sh
+run.sh
+install-desktop.sh
+test_package.sh
+
+# Documentation build
+docs/_build/
+docs/_static/
+docs/_templates/
