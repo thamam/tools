@@ -6,7 +6,8 @@
       "Bash(python:*)",
       "Bash(chmod:*)",
       "Bash(./launch.sh)",
-      "Bash(pip install:*)"
+      "Bash(pip install:*)",
+      "Bash(pip search:*)"
     ],
     "deny": []
   }

@@ -21,3 +21,7 @@ requests>=2.25.0
 # Optional dependencies for system tray
 # pystray>=0.19.0  # For system tray functionality
 # pillow>=8.0.0   # For system tray icons
+
+# Optional dependencies for wake word detection
+# openwakeword>=0.6.0  # For wake word detection
+# onnxruntime>=1.16.0  # Required for openWakeWord
