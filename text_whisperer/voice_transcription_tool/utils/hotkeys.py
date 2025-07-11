@@ -25,9 +25,7 @@ class HotkeyManager:
     
     def __init__(self):
         self.logger = logging.getLogger(__name__)
-        self.registered_hotkey = None
-        self.current_combination = None
-        self.callback = None
+        self.registered_hotkeys = {}  # Dict of combination -> (hotkey_id, callback)
         self.is_active = False
     
     def register_hotkey(self, combination: str, callback: Callable[[], None]) -> bool:
@@ -41,23 +39,23 @@ class HotkeyManager:
             return False
         
         try:
-            # Remove existing hotkey
-            self.unregister_hotkey()
-            
             # Validate combination
             if not self.validate_combination(combination):
                 self.logger.error(f"Invalid hotkey combination: {combination}")
                 return False
             
+            # Remove existing hotkey for this combination if any
+            if combination in self.registered_hotkeys:
+                self.unregister_hotkey(combination)
+            
             # Register new hotkey
-            self.registered_hotkey = keyboard.add_hotkey(
+            hotkey_id = keyboard.add_hotkey(
                 combination,
                 callback,
                 suppress=False
             )
             
-            self.current_combination = combination
-            self.callback = callback
+            self.registered_hotkeys[combination] = (hotkey_id, callback)
             self.logger.info(f"✅ Hotkey registered: {combination}")
             return True
             
@@ -72,18 +70,37 @@ class HotkeyManager:
             
             return False
     
-    def unregister_hotkey(self) -> None:
-        """Unregister the current hotkey."""
-        if self.registered_hotkey and KEYBOARD_AVAILABLE:
-            try:
-                keyboard.remove_hotkey(self.registered_hotkey)
-                self.logger.info(f"Hotkey unregistered: {self.current_combination}")
-            except Exception as e:
-                self.logger.warning(f"Failed to unregister hotkey: {e}")
-        
-        self.registered_hotkey = None
-        self.current_combination = None
-        self.callback = None
+    def unregister_hotkey(self, combination: Optional[str] = None) -> None:
+        """Unregister hotkey(s)."""
+        if not KEYBOARD_AVAILABLE:
+            return
+            
+        if combination:
+            # Unregister specific hotkey
+            if combination in self.registered_hotkeys:
+                hotkey_id, _ = self.registered_hotkeys[combination]
+                try:
+                    keyboard.remove_hotkey(hotkey_id)
+                    del self.registered_hotkeys[combination]
+                    self.logger.info(f"Hotkey unregistered: {combination}")
+                except Exception as e:
+                    self.logger.warning(f"Failed to unregister hotkey {combination}: {e}")
+        else:
+            # Unregister all hotkeys
+            for combo, (hotkey_id, _) in list(self.registered_hotkeys.items()):
+                try:
+                    keyboard.remove_hotkey(hotkey_id)
+                    self.logger.info(f"Hotkey unregistered: {combo}")
+                except Exception as e:
+                    self.logger.warning(f"Failed to unregister hotkey {combo}: {e}")
+            self.registered_hotkeys.clear()
+    
+    def register_multiple_hotkeys(self, hotkey_map: Dict[str, Callable[[], None]]) -> Dict[str, bool]:
+        """Register multiple hotkeys at once."""
+        results = {}
+        for combination, callback in hotkey_map.items():
+            results[combination] = self.register_hotkey(combination, callback)
+        return results
     
     def set_active(self, active: bool) -> None:
         """Set hotkey activation state."""
@@ -93,11 +110,16 @@ class HotkeyManager:
     
     def is_hotkey_active(self) -> bool:
         """Check if hotkeys are active."""
-        return self.is_active and self.registered_hotkey is not None
+        return self.is_active and len(self.registered_hotkeys) > 0
+    
+    def get_registered_combinations(self) -> List[str]:
+        """Get all registered hotkey combinations."""
+        return list(self.registered_hotkeys.keys())
     
     def get_current_combination(self) -> Optional[str]:
-        """Get the current hotkey combination."""
-        return self.current_combination
+        """Get the primary hotkey combination (for backward compatibility)."""
+        combinations = self.get_registered_combinations()
+        return combinations[0] if combinations else None
     
     def validate_combination(self, combination: str) -> bool:
         """
@@ -137,7 +159,10 @@ class HotkeyManager:
     def get_recommended_combinations(self) -> List[tuple]:
         """Get a list of recommended hotkey combinations."""
         return [
-            ("f9", "F9 - Easy one-handed (recommended)"),
+            ("alt+d", "Alt+D - Record/Stop (recommended)"),
+            ("alt+s", "Alt+S - Settings/Stop"),
+            ("alt+w", "Alt+W - Wake word toggle"),
+            ("f9", "F9 - Easy one-handed"),
             ("f10", "F10 - One-handed alternative"),
             ("f11", "F11 - One-handed"),
             ("f12", "F12 - One-handed"),
@@ -178,13 +203,14 @@ class HotkeyManager:
     
     def get_status_info(self) -> Dict[str, Any]:
         """Get comprehensive status information."""
+        current_combo = self.get_current_combination()
         return {
             'available': KEYBOARD_AVAILABLE,
-            'registered': self.registered_hotkey is not None,
+            'registered': len(self.registered_hotkeys) > 0,
             'active': self.is_active,
-            'current_combination': self.current_combination,
-            'one_handed': self.is_combination_one_handed(self.current_combination or ''),
-            'callback_set': self.callback is not None
+            'current_combination': current_combo,
+            'one_handed': self.is_combination_one_handed(current_combo or ''),
+            'callback_set': len(self.registered_hotkeys) > 0
         }
     
     def test_combination(self, combination: str) -> Dict[str, Any]:

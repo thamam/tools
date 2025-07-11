@@ -532,13 +532,41 @@ class VoiceTranscriptionApp:
     
     def _setup_hotkeys(self):
         """Setup global hotkeys."""
-        hotkey_combination = self.config.get('hotkey_combination', 'f9')
-        success = self.hotkey_manager.register_hotkey(hotkey_combination, self._hotkey_callback)
+        # Define multiple hotkeys
+        hotkey_map = {
+            self.config.get('hotkey_combination', 'alt+d'): self._hotkey_callback,  # Record/Stop
+            'alt+s': self._hotkey_settings,  # Open Settings
+            'alt+w': self._hotkey_wake_word,  # Toggle Wake Word
+        }
         
-        if success:
-            self._add_debug_message(f"🔥 Hotkey registered: {hotkey_combination}")
+        # Register all hotkeys
+        results = self.hotkey_manager.register_multiple_hotkeys(hotkey_map)
+        
+        # Report results
+        for combination, success in results.items():
+            if success:
+                self._add_debug_message(f"🔥 Hotkey registered: {combination}")
+            else:
+                self._add_debug_message(f"❌ Failed to register hotkey: {combination}")
+        
+        # Log summary
+        successful_hotkeys = [combo for combo, success in results.items() if success]
+        if successful_hotkeys:
+            self._add_debug_message(f"✅ Active hotkeys: {', '.join(successful_hotkeys)}")
         else:
-            self._add_debug_message(f"❌ Failed to register hotkey: {hotkey_combination}")
+            self._add_debug_message("⚠️ No hotkeys registered - run with sudo for global hotkeys")
+    
+    def _hotkey_settings(self):
+        """Hotkey callback for opening settings."""
+        if hasattr(self, 'root'):
+            self.root.after(0, self._open_settings)
+            self._add_debug_message("⚙️ Settings opened via hotkey")
+    
+    def _hotkey_wake_word(self):
+        """Hotkey callback for toggling wake word detection."""
+        if hasattr(self, 'root'):
+            self.root.after(0, self._toggle_wake_word)
+            self._add_debug_message("🎯 Wake word toggled via hotkey")
     
     def _hotkey_callback(self):
         """Handle hotkey press."""

@@ -153,8 +153,8 @@ class TestHotkeyManager:
         manager = HotkeyManager()
         
         assert manager is not None
-        assert hasattr(manager, 'current_combination')
-        assert hasattr(manager, 'callback')
+        assert hasattr(manager, 'registered_hotkeys')
+        assert hasattr(manager, 'is_active')
     
     def test_get_one_handed_combinations(self):
         """Test getting one-handed key combinations."""

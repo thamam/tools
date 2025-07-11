@@ -23,7 +23,7 @@ class ConfigManager:
     def _load_defaults(self) -> Dict[str, Any]:
         """Load default configuration."""
         return {
-            'hotkey_combination': 'f9',
+            'hotkey_combination': 'alt+d',
             'current_engine': '',
             'audio_rate': 16000,
             'audio_channels': 1,

@@ -26,7 +26,7 @@ class TestConfigManager:
         config = ConfigManager(str(config_file))
         
         # Test some default values
-        assert config.get('hotkey_combination') == 'f9'
+        assert config.get('hotkey_combination') == 'alt+d'
         assert config.get('audio_rate') == 16000
         assert config.get('audio_channels') == 1
         assert config.get('record_seconds') == 30
@@ -85,7 +85,7 @@ class TestConfigManager:
         
         # Should handle corruption gracefully
         config = ConfigManager(str(config_file))
-        assert config.get('hotkey_combination') == 'f9'  # Should have defaults
+        assert config.get('hotkey_combination') == 'alt+d'  # Should have defaults
 
 
 class TestDatabaseManager:
