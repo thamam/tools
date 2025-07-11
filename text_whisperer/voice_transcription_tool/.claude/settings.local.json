@@ -14,7 +14,11 @@
       "Bash(dpkg -I:*)",
       "Bash(dpkg -c:*)",
       "Bash(dpkg:*)",
-      "Bash(./test_package.sh)"
+      "Bash(./test_package.sh)",
+      "Bash(systemctl:*)",
+      "Bash(journalctl:*)",
+      "Bash(./start_on_login.sh:*)",
+      "Bash(./status_and_control.sh)"
     ],
     "deny": []
   }

@@ -1547,22 +1547,28 @@ class VoiceTranscriptionApp:
             new_engine = engine_var.get()
             if new_engine != self.speech_manager.get_current_engine():
                 if self.speech_manager.set_engine(new_engine):
-                    self.engine_label.configure(text=f"Engine: {new_engine}")
+                    # Update engine label if it exists (in main window)
+                    if hasattr(self, 'engine_label'):
+                        self.engine_label.configure(text=f"Engine: {new_engine}")
                     self._add_debug_message(f"✅ Engine changed to: {new_engine}")
                 else:
                     self._add_debug_message(f"❌ Failed to change engine to: {new_engine}")
             
             # Update hotkey
             new_hotkey = hotkey_var.get()
-            old_hotkey = self.config.get('hotkey_combination', 'f9')
+            old_hotkey = self.config.get('hotkey_combination', 'alt+d')
             
             if new_hotkey != old_hotkey:
+                # Try to register the new hotkey
                 success = self.hotkey_manager.register_hotkey(new_hotkey, self._hotkey_callback)
                 if success:
                     self.config.set('hotkey_combination', new_hotkey)
                     self._add_debug_message(f"✅ Hotkey changed to: {new_hotkey}")
                 else:
+                    # Keep the old hotkey setting if registration fails
+                    hotkey_var.set(old_hotkey)
                     self._add_debug_message(f"❌ Failed to change hotkey to: {new_hotkey}")
+                    self._add_debug_message("💡 Tip: Run with sudo for global hotkeys")
             
             # Save clipboard settings
             self.config.set('auto_copy_to_clipboard', auto_copy_var.get())
