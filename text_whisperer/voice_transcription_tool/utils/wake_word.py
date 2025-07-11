@@ -326,6 +326,124 @@ class WakeWordDetector:
         except Exception as e:
             self.logger.error(f"Microphone test failed: {e}")
             return False
+    
+    def start_live_test(self, test_callback: Optional[Callable] = None) -> bool:
+        """Start live testing mode for wake word detection."""
+        if not self.is_available():
+            return False
+            
+        # Store original callback and replace with test callback
+        self.original_callback = self.callback
+        if test_callback:
+            self.callback = test_callback
+        
+        # Start listening if not already
+        if not self.is_listening:
+            return self.start_listening()
+        return True
+    
+    def stop_live_test(self) -> None:
+        """Stop live testing mode and restore original callback."""
+        # Restore original callback
+        if hasattr(self, 'original_callback'):
+            self.callback = self.original_callback
+            delattr(self, 'original_callback')
+        
+        # Keep listening state as it was
+        # (don't auto-stop listening)
+    
+    def collect_training_sample(self, duration: float = 3.0) -> Optional[Dict[str, Any]]:
+        """Collect a training sample for the wake word."""
+        if not self.is_available():
+            return None
+            
+        try:
+            import numpy as np
+            
+            self.logger.info(f"Collecting training sample for {duration} seconds...")
+            
+            # Store audio data during recording
+            self.training_audio_buffer = []
+            self.is_collecting_training = True
+            
+            # Start listening if not already
+            was_listening = self.is_listening
+            if not was_listening:
+                self.start_listening()
+            
+            # Collect for specified duration
+            time.sleep(duration)
+            
+            # Stop collecting
+            self.is_collecting_training = False
+            
+            # Stop listening if we started it
+            if not was_listening:
+                self.stop_listening()
+            
+            # Process collected audio
+            if self.training_audio_buffer:
+                # Concatenate all audio chunks
+                audio_data = np.concatenate(self.training_audio_buffer)
+                
+                # Create training sample
+                training_sample = {
+                    'audio_data': audio_data,
+                    'duration': duration,
+                    'sample_rate': self.sample_rate,
+                    'wake_word': self.wake_words[0] if self.wake_words else 'unknown',
+                    'timestamp': time.time()
+                }
+                
+                self.logger.info("✅ Training sample collected")
+                return training_sample
+            else:
+                self.logger.warning("No audio data collected")
+                return None
+                
+        except Exception as e:
+            self.logger.error(f"Failed to collect training sample: {e}")
+            return None
+        finally:
+            # Clean up
+            self.is_collecting_training = False
+            if hasattr(self, 'training_audio_buffer'):
+                delattr(self, 'training_audio_buffer')
+    
+    def _process_audio_chunk(self, audio_data: np.ndarray) -> None:
+        """Process a single audio chunk for wake word detection."""
+        # Store audio for training if collecting
+        if hasattr(self, 'is_collecting_training') and self.is_collecting_training:
+            if hasattr(self, 'training_audio_buffer'):
+                self.training_audio_buffer.append(audio_data.copy())
+        
+        if not self.model:
+            return
+            
+        try:
+            # Get predictions from model
+            prediction = self.model.predict(audio_data)
+            
+            # Check each wake word
+            for wake_word in self.wake_words:
+                # Get score for this wake word
+                if isinstance(prediction, dict):
+                    score = prediction.get(wake_word, 0.0)
+                else:
+                    # Handle different prediction formats
+                    score = float(prediction) if prediction > 0 else 0.0
+                
+                # Check if detected
+                if score >= self.threshold:
+                    current_time = time.time()
+                    
+                    # Check cooldown to avoid multiple activations
+                    if current_time - self.last_activation >= self.activation_cooldown:
+                        self.last_activation = current_time
+                        self._on_wake_word_detected(wake_word, score)
+                        
+        except Exception as e:
+            self.logger.debug(f"Wake word processing error: {e}")
 
 
 class SimpleWakeWordDetector(WakeWordDetector):
@@ -337,14 +455,48 @@ class SimpleWakeWordDetector(WakeWordDetector):
         super().__init__(callback)
         self.wake_phrase = wake_phrase.lower()
         self.energy_threshold = 1000  # Audio energy threshold
+        self.training_samples = []  # Store training samples to adjust threshold
         
     def _initialize_model(self) -> bool:
         """No model needed for simple detector."""
         self.logger.info("Using simple wake word detector (energy-based)")
         return True
+    
+    def collect_training_sample(self, duration: float = 3.0) -> Optional[Dict[str, Any]]:
+        """Collect training sample to improve energy threshold."""
+        sample = super().collect_training_sample(duration)
+        if sample:
+            # Calculate energy statistics from the sample
+            audio_data = sample['audio_data']
+            energy = np.sqrt(np.mean(audio_data ** 2)) * 32768
+            
+            # Store sample with energy info
+            training_sample = {
+                'energy': energy,
+                'wake_word': sample['wake_word'],
+                'timestamp': sample['timestamp']
+            }
+            
+            self.training_samples.append(training_sample)
+            
+            # Adjust threshold based on collected samples
+            if len(self.training_samples) >= 3:
+                energies = [s['energy'] for s in self.training_samples[-5:]]  # Use last 5 samples
+                avg_energy = np.mean(energies)
+                # Set threshold slightly below average training energy
+                self.energy_threshold = max(500, avg_energy * 0.8)
+                self.logger.info(f"Adjusted energy threshold to {self.energy_threshold:.0f} based on training")
+            
+            return sample
+        return None
         
     def _process_audio_chunk(self, audio_data: np.ndarray) -> None:
-        """Simple energy-based detection."""
+        """Simple energy-based detection with training support."""
+        # Store audio for training if collecting
+        if hasattr(self, 'is_collecting_training') and self.is_collecting_training:
+            if hasattr(self, 'training_audio_buffer'):
+                self.training_audio_buffer.append(audio_data.copy())
+        
         # Calculate RMS energy
         energy = np.sqrt(np.mean(audio_data ** 2))
         
@@ -353,9 +505,8 @@ class SimpleWakeWordDetector(WakeWordDetector):
         
         # Check if above threshold (indicates speech)
         if energy_16bit > self.energy_threshold:
-            # For now, just trigger on any loud sound
-            # In a real implementation, you'd do more sophisticated detection
             current_time = time.time()
             if current_time - self.last_activation >= self.activation_cooldown:
                 self.last_activation = current_time
-                self._on_wake_word_detected("speech detected", energy_16bit / 32768)
+                confidence = min(1.0, energy_16bit / (self.energy_threshold * 2))
+                self._on_wake_word_detected("speech detected", confidence)
