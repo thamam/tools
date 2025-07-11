@@ -1,10 +1,11 @@
 [Desktop Entry]
 Name=Voice Transcription Tool
-Comment=Speech-to-text with global hotkeys
+Comment=AI-powered voice transcription with wake word detection
 Exec=/home/thh3/personal/tools/text_whisperer/voice_transcription_tool/launch-gui.sh
-Icon=/home/thh3/personal/tools/text_whisperer/voice_transcription_tool/icon.png
+Icon=/home/thh3/personal/tools/text_whisperer/voice_transcription_tool/voice-transcription.svg
 Terminal=false
 Type=Application
-Categories=Utility;Audio;Accessibility;
-Keywords=speech;voice;transcription;dictation;whisper;
+Categories=AudioVideo;Audio;Utility;
 StartupNotify=true
+Keywords=voice;transcription;speech;text;ai;whisper;
+MimeType=audio/wav;audio/mp3;audio/ogg;

@@ -1,41 +1,17 @@
 #!/bin/bash
-# GUI launcher for Voice Transcription Tool with PolicyKit
+# Voice Transcription Tool GUI Launcher
+# This script launches with a GUI password prompt for hotkeys
 
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+cd "/home/thh3/personal/tools/text_whisperer/voice_transcription_tool"
 
-# Create a temporary script that pkexec will run
-cat > /tmp/voice_transcription_launcher.sh << 'EOF'
-#!/bin/bash
-# This script runs with elevated privileges
-
-# Get the original user info
-ORIGINAL_USER="${PKEXEC_UID:-$(id -u)}"
-ORIGINAL_HOME=$(getent passwd $(id -un $ORIGINAL_USER) | cut -d: -f6)
-
-# Set up environment
-export HOME="$ORIGINAL_HOME"
-export USER=$(id -un $ORIGINAL_USER)
-export DISPLAY="${DISPLAY:-:0}"
-export XAUTHORITY="${XAUTHORITY:-$ORIGINAL_HOME/.Xauthority}"
-
-# Change to script directory (passed as argument)
-cd "$1"
-
-# Activate virtual environment if it exists
-if [ -f "../.venv/bin/activate" ]; then
-    source "../.venv/bin/activate"
-elif [ -f ".venv/bin/activate" ]; then
-    source ".venv/bin/activate"
+# Try to get sudo with GUI prompt
+if command -v pkexec >/dev/null 2>&1; then
+    # Use PolicyKit for GUI password prompt
+    pkexec env DISPLAY=$DISPLAY XAUTHORITY=$XAUTHORITY python3 "/home/thh3/personal/tools/text_whisperer/voice_transcription_tool/main.py" "$@"
+elif command -v gksudo >/dev/null 2>&1; then
+    # Fallback to gksudo
+    gksudo python3 "/home/thh3/personal/tools/text_whisperer/voice_transcription_tool/main.py" "$@"
+else
+    # No GUI sudo available, run normally
+    python3 "/home/thh3/personal/tools/text_whisperer/voice_transcription_tool/main.py" "$@"
 fi
-
-# Run the application
-exec python main.py
-EOF
-
-chmod +x /tmp/voice_transcription_launcher.sh
-
-# Use pkexec with the temporary script
-pkexec env DISPLAY="$DISPLAY" XAUTHORITY="$XAUTHORITY" /tmp/voice_transcription_launcher.sh "$SCRIPT_DIR"
-
-# Clean up
-rm -f /tmp/voice_transcription_launcher.sh
