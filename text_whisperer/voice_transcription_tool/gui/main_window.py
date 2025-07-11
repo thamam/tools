@@ -860,20 +860,66 @@ class VoiceTranscriptionApp:
 
     def _open_settings(self):
         """
-        Open settings window.
+        Open settings window with scrollable content.
         
         MIGRATION: Copy logic from your open_settings() method here.
         This creates the settings dialog with engine selection, hotkeys, etc.
         """
         settings_window = tk.Toplevel(self.root)
-        settings_window.title("Settings")
-        settings_window.geometry("500x700")
+        settings_window.title("Voice Transcription Tool - Settings")
+        settings_window.geometry("600x800")
         settings_window.transient(self.root)
         settings_window.grab_set()
         
+        # Button frame at bottom (create first so it doesn't get pushed down)
+        button_frame = ttk.Frame(settings_window)
+        button_frame.pack(side="bottom", fill="x", padx=10, pady=10)
+        
+        # Create main frame with scrollbar
+        main_frame = ttk.Frame(settings_window)
+        main_frame.pack(fill="both", expand=True, padx=10, pady=(10, 0))
+        
+        # Create canvas and scrollbar
+        canvas = tk.Canvas(main_frame, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(main_frame, orient="vertical", command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas)
+        
+        # Configure scrolling
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        # Pack canvas and scrollbar
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        # Enable mouse wheel scrolling (cross-platform)
+        def _on_mousewheel(event):
+            if event.delta:
+                # Windows
+                canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+            else:
+                # Linux
+                if event.num == 4:
+                    canvas.yview_scroll(-1, "units")
+                elif event.num == 5:
+                    canvas.yview_scroll(1, "units")
+        
+        # Bind mouse wheel events
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)  # Windows
+        canvas.bind_all("<Button-4>", _on_mousewheel)     # Linux
+        canvas.bind_all("<Button-5>", _on_mousewheel)     # Linux
+        
+        # Use scrollable_frame as parent for all settings
+        parent = scrollable_frame
+        
         # Engine selection
-        engine_frame = ttk.LabelFrame(settings_window, text="Speech Engine", padding="10")
-        engine_frame.pack(fill="x", padx=10, pady=10)
+        engine_frame = ttk.LabelFrame(parent, text="Speech Engine", padding="10")
+        engine_frame.pack(fill="x", pady=(0, 10))
         
         current_engine = self.speech_manager.get_current_engine() or ''
         engine_var = tk.StringVar(value=current_engine)
@@ -893,8 +939,8 @@ class VoiceTranscriptionApp:
                         foreground="orange").pack(anchor="w")
         
         # Hotkey configuration
-        hotkey_frame = ttk.LabelFrame(settings_window, text="Hotkey Configuration", padding="10")
-        hotkey_frame.pack(fill="x", padx=10, pady=10)
+        hotkey_frame = ttk.LabelFrame(parent, text="Hotkey Configuration", padding="10")
+        hotkey_frame.pack(fill="x", pady=(0, 10))
         
         current_hotkey = self.config.get('hotkey_combination', 'f9')
         ttk.Label(hotkey_frame, text=f"Current hotkey: {current_hotkey}").pack(anchor="w")
@@ -918,8 +964,8 @@ class VoiceTranscriptionApp:
             ttk.Radiobutton(hotkey_frame, text=label, variable=hotkey_var, value=value).pack(anchor="w")
         
         # Voice training section
-        training_frame = ttk.LabelFrame(settings_window, text="Voice Training", padding="10")
-        training_frame.pack(fill="x", padx=10, pady=10)
+        training_frame = ttk.LabelFrame(parent, text="Voice Training", padding="10")
+        training_frame.pack(fill="x", pady=(0, 10))
         
         # Check for existing training data
         existing_profiles = self.voice_trainer.get_existing_profiles()
@@ -941,8 +987,8 @@ class VoiceTranscriptionApp:
                         command=self._clear_voice_training).pack(side="left")
         
         # Clipboard settings
-        clipboard_frame = ttk.LabelFrame(settings_window, text="Clipboard Settings", padding="10")
-        clipboard_frame.pack(fill="x", padx=10, pady=10)
+        clipboard_frame = ttk.LabelFrame(parent, text="Clipboard Settings", padding="10")
+        clipboard_frame.pack(fill="x", pady=(0, 10))
         
         # Auto copy to clipboard
         auto_copy_var = tk.BooleanVar(value=self.config.get('auto_copy_to_clipboard', True))
@@ -990,8 +1036,8 @@ class VoiceTranscriptionApp:
         auto_paste_delay_var.trace_add("write", update_delay_label)
         
         # System tray settings
-        tray_frame = ttk.LabelFrame(settings_window, text="System Tray", padding="10")
-        tray_frame.pack(fill="x", padx=10, pady=10)
+        tray_frame = ttk.LabelFrame(parent, text="System Tray", padding="10")
+        tray_frame.pack(fill="x", pady=(0, 10))
         
         # System tray status
         if self.system_tray.is_available():
@@ -1012,8 +1058,8 @@ class VoiceTranscriptionApp:
                      font=("Arial", 8), foreground="gray").pack(anchor="w")
         
         # Audio feedback settings
-        audio_frame = ttk.LabelFrame(settings_window, text="Audio Feedback", padding="10")
-        audio_frame.pack(fill="x", padx=10, pady=10)
+        audio_frame = ttk.LabelFrame(parent, text="Audio Feedback", padding="10")
+        audio_frame.pack(fill="x", pady=(0, 10))
         
         # Enable/disable audio feedback
         feedback_enabled_var = tk.BooleanVar(value=self.config.get('audio_feedback_enabled', True))
@@ -1060,8 +1106,8 @@ class VoiceTranscriptionApp:
                   command=test_audio_feedback).pack(pady=(10,0))
         
         # Window size configuration
-        window_frame = ttk.LabelFrame(settings_window, text="Window Settings", padding="10")
-        window_frame.pack(fill="x", padx=10, pady=10)
+        window_frame = ttk.LabelFrame(parent, text="Window Settings", padding="10")
+        window_frame.pack(fill="x", pady=(0, 10))
         
         current_geometry = self.root.geometry()
         if 'x' in current_geometry and '+' in current_geometry:
@@ -1103,8 +1149,8 @@ class VoiceTranscriptionApp:
         ttk.Button(size_frame, text="Apply Size", command=apply_window_size).pack(side="left", padx=10)
         
         # Wake Word Settings
-        wake_word_frame = ttk.LabelFrame(settings_window, text="Wake Word Detection", padding="10")
-        wake_word_frame.pack(fill="x", padx=10, pady=10)
+        wake_word_frame = ttk.LabelFrame(parent, text="Wake Word Detection", padding="10")
+        wake_word_frame.pack(fill="x", pady=(0, 10))
         
         # Wake word enabled checkbox
         wake_word_enabled_var = tk.BooleanVar(value=self.config.get('wake_word_enabled', False))
@@ -1209,8 +1255,11 @@ class VoiceTranscriptionApp:
             self._add_debug_message("✅ All settings saved")
             settings_window.destroy()
             
-        ttk.Button(settings_window, text="Save Settings", 
-                    command=save_settings).pack(pady=20)
+        # Add buttons to the button frame created at the top
+        ttk.Button(button_frame, text="Save Settings",
+                   command=save_settings).pack(side="right", padx=(10, 0))
+        ttk.Button(button_frame, text="Cancel",
+                   command=settings_window.destroy).pack(side="right")
 
     def _start_voice_training(self):
         """Start voice training process."""

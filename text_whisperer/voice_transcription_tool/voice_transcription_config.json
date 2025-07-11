@@ -7,11 +7,16 @@
   "window_width": 1073,
   "window_height": 1013,
   "record_seconds": 30,
-  "last_updated": "2025-07-11T01:02:16.805273",
+  "last_updated": "2025-07-11T10:17:38.142671",
   "audio_feedback_enabled": true,
   "audio_feedback_type": "beep",
   "audio_feedback_volume": 0.30357142857142855,
   "auto_copy_to_clipboard": true,
   "auto_paste_mode": true,
-  "auto_paste_delay": 1.0
+  "auto_paste_delay": 1.0,
+  "wake_word_enabled": true,
+  "wake_words": [
+    "hey Noam"
+  ],
+  "wake_word_threshold": 0.5
 }
