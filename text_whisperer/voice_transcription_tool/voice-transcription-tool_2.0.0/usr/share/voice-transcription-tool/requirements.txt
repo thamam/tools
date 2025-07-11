@@ -1,0 +1,27 @@
+# Core dependencies
+keyboard>=0.13.5
+pyperclip>=1.9.0
+
+# Audio recording
+pyaudio>=0.2.14
+
+# Speech recognition engines (choose one or both)
+openai-whisper>=20231117
+SpeechRecognition>=3.10.0
+
+# Additional dependencies
+torch>=1.9.0
+numpy>=1.21.0
+requests>=2.25.0
+
+# Optional dependencies for audio feedback
+# pygame>=2.0.0  # For better audio playback
+# pyttsx3>=2.90  # For text-to-speech feedback
+
+# Optional dependencies for system tray
+# pystray>=0.19.0  # For system tray functionality
+# pillow>=8.0.0   # For system tray icons
+
+# Optional dependencies for wake word detection
+# openwakeword>=0.6.0  # For wake word detection
+# onnxruntime>=1.16.0  # Required for openWakeWord

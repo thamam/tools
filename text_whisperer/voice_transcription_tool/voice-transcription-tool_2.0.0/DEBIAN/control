@@ -1,0 +1,25 @@
+Package: voice-transcription-tool
+Version: 2.0.0
+Section: utils
+Priority: optional
+Architecture: all
+Depends: python3 (>= 3.8), python3-pip, python3-tk, python3-pyaudio, portaudio19-dev, xdotool, pulseaudio-utils
+Recommends: sudo
+Maintainer: Voice Transcription Tool Team <noreply@voicetranscription.local>
+Description: Advanced speech-to-text application with AI integration
+ Voice Transcription Tool is a modern, modular speech-to-text application
+ featuring multiple recognition engines (Whisper, Google Speech), wake word
+ detection, global hotkeys, voice training, and comprehensive GUI.
+ .
+ Key Features:
+  - Multiple speech engines (Whisper local, Google Cloud)
+  - Wake word detection for hands-free activation
+  - Global hotkeys (Alt+D record, Alt+S settings, Alt+W wake word)
+  - Voice training for improved accuracy
+  - Auto-paste and clipboard integration
+  - System tray operation
+  - Modern tabbed interface with advanced mode
+  - Audio feedback and device management
+ .
+ Perfect for transcription work, accessibility, and productivity enhancement.
+Homepage: https://github.com/voice-transcription-tool

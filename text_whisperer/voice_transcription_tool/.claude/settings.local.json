@@ -8,7 +8,13 @@
       "Bash(./launch.sh)",
       "Bash(pip install:*)",
       "Bash(pip search:*)",
-      "Bash(timeout:*)"
+      "Bash(timeout:*)",
+      "Bash(cp:*)",
+      "Bash(dpkg-deb:*)",
+      "Bash(dpkg -I:*)",
+      "Bash(dpkg -c:*)",
+      "Bash(dpkg:*)",
+      "Bash(./test_package.sh)"
     ],
     "deny": []
   }
