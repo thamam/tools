@@ -412,7 +412,7 @@ class VoiceTranscriptionTool:
         self.add_debug_message(f"🎤 Audio method: {self.audio_method}")
         self.add_debug_message(f"🧠 Speech engine: {getattr(self, 'current_engine', 'None')}")
         self.add_debug_message(f"🔥 Hotkey: {getattr(self, 'hotkey_combination', 'None')}")
-        self.add_debug_message(f"🖼️ Window size: {window_width}x{window_height}")
+        self.add_debug_message(f"🖼️ Window size: {getattr(self, 'window_width', 900)}x{getattr(self, 'window_height', 800)}")
         self.add_debug_message(f"⏱️ Max recording time: {self.record_seconds}s")
         
     def add_debug_message(self, message):

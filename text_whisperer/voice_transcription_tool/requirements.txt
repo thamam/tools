@@ -17,3 +17,7 @@ requests>=2.25.0
 # Optional dependencies for audio feedback
 # pygame>=2.0.0  # For better audio playback
 # pyttsx3>=2.90  # For text-to-speech feedback
+
+# Optional dependencies for system tray
+# pystray>=0.19.0  # For system tray functionality
+# pillow>=8.0.0   # For system tray icons

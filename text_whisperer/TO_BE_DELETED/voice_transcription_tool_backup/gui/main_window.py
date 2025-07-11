@@ -25,13 +25,10 @@ from config.settings import ConfigManager
 from config.database import DatabaseManager
 from audio.recorder import AudioRecorder
 from audio.devices import AudioDeviceManager
-from audio.feedback import AudioFeedback
 from speech.engines import SpeechEngineManager
 from speech.training import VoiceTrainer
 from utils.hotkeys import HotkeyManager
 from utils.logger import DebugMessageHandler
-from utils.autopaste import AutoPasteManager
-from utils.system_tray import SystemTrayManager
 
 try:
     import pyperclip
@@ -73,15 +70,6 @@ class VoiceTranscriptionApp:
         self.voice_trainer = VoiceTrainer(self.db_manager)
         self.hotkey_manager = HotkeyManager()
         
-        # Initialize audio feedback
-        self.audio_feedback = AudioFeedback(self.config.get_all())
-        
-        # Initialize auto-paste manager
-        self.autopaste_manager = AutoPasteManager()
-        
-        # Initialize system tray manager
-        self.system_tray = SystemTrayManager(self)
-        
         # Load saved engine preference
         saved_engine = self.config.get('current_engine', '')
         if saved_engine and self.speech_manager.is_engine_available(saved_engine):
@@ -103,20 +91,11 @@ class VoiceTranscriptionApp:
         # Initialize debug handler callback
         self.debug_handler.add_callback(self._update_debug_display)
         
-        # Initialize system tray
-        self._setup_system_tray()
-        
         # Initial setup
         self._add_debug_message("🚀 Voice Transcription Tool initialized")
         self._add_debug_message(f"🎤 Audio method: {self.audio_recorder.get_audio_method()}")
         self._add_debug_message(f"🧠 Speech engine: {self.speech_manager.get_current_engine()}")
         self._add_debug_message(f"🔥 Hotkey: {self.config.get('hotkey_combination', 'f9')}")
-        
-        # System tray status
-        if self.system_tray.is_available():
-            self._add_debug_message("🖥️ System tray enabled")
-        else:
-            self._add_debug_message("⚠️ System tray not available")
     
     def _create_gui(self):
         """
@@ -289,57 +268,6 @@ class VoiceTranscriptionApp:
         else:
             self._add_debug_message("⚠️ Hotkey pressed but mode not enabled")
     
-    def _setup_system_tray(self):
-        """Setup system tray functionality."""
-        if not self.system_tray.is_available():
-            self.logger.warning("System tray not available")
-            return
-        
-        # Set up callbacks
-        self.system_tray.set_show_callback(self._show_from_tray)
-        self.system_tray.set_hide_callback(self._hide_to_tray)
-        self.system_tray.set_quit_callback(self._on_closing)
-        self.system_tray.set_record_callback(self._toggle_recording)
-        
-        # Start system tray
-        if self.system_tray.start():
-            self.logger.info("System tray started successfully")
-            
-            # Add minimize to tray option
-            self._add_tray_options_to_gui()
-        else:
-            self.logger.warning("Failed to start system tray")
-    
-    def _add_tray_options_to_gui(self):
-        """Add system tray options to the GUI."""
-        # Add a minimize to tray button to the control frame if tray is available
-        if hasattr(self, 'control_frame') and self.system_tray.is_available():
-            tray_button = ttk.Button(
-                self.control_frame, 
-                text="📱 Minimize to Tray",
-                command=self._hide_to_tray
-            )
-            tray_button.pack(side="left", padx=5)
-    
-    def _show_from_tray(self):
-        """Show main window from system tray."""
-        self.root.deiconify()
-        self.root.lift()
-        self.root.focus_force()
-        self._add_debug_message("📱 Restored from system tray")
-    
-    def _hide_to_tray(self):
-        """Hide main window to system tray."""
-        if self.system_tray.is_available():
-            self.root.withdraw()
-            self.system_tray.show_notification(
-                "Voice Transcription Tool",
-                "Minimized to system tray. Right-click icon for options."
-            )
-            self._add_debug_message("📱 Minimized to system tray")
-        else:
-            self._add_debug_message("❌ System tray not available")
-    
     def _toggle_hotkey_mode(self):
         """Toggle hotkey listening mode."""
         current_state = self.hotkey_manager.is_hotkey_active()
@@ -382,23 +310,12 @@ class VoiceTranscriptionApp:
             messagebox.showerror("Error", error_msg)
             return
         
-        # Capture active window for auto-paste (before changing focus)
-        if self.config.get('auto_paste_mode', False):
-            self.autopaste_manager.capture_active_window()
-        
         self.is_recording = True
         self.recording_start_time = time.time()
         self.record_button.configure(text="🛑 Stop Recording")
         self.status_label.configure(text="Recording...", foreground="red")
         self.recording_progress['value'] = 0
         self._add_debug_message("🎤 Recording started")
-        
-        # Play start feedback sound
-        self.audio_feedback.play_start()
-        
-        # Update system tray icon
-        if self.system_tray.is_available():
-            self.system_tray.update_icon_state(True)
         
         # Start recording in a separate thread
         max_duration = self.config.get('record_seconds', 30)
@@ -415,13 +332,6 @@ class VoiceTranscriptionApp:
         self.status_label.configure(text="Processing...", foreground="orange")
         self.recording_progress['value'] = 0
         self._add_debug_message("🛑 Recording stopped")
-        
-        # Play stop feedback sound
-        self.audio_feedback.play_stop()
-        
-        # Update system tray icon
-        if self.system_tray.is_available():
-            self.system_tray.update_icon_state(False)
         
         # Stop the recorder
         self.audio_recorder.stop_recording()
@@ -557,11 +467,6 @@ class VoiceTranscriptionApp:
         # Cleanup
         self.hotkey_manager.unregister_hotkey()
         self.audio_recorder.cleanup()
-        
-        # Stop system tray
-        if self.system_tray.is_available():
-            self.system_tray.stop()
-        
         self.root.destroy()
 
     def _update_transcription_display(self, result):
@@ -599,46 +504,6 @@ class VoiceTranscriptionApp:
             self._add_debug_message(f"🎯 High confidence transcription ({result['confidence']:.2f})")
         else:
             self._add_debug_message(f"⚠️ Low confidence transcription ({result['confidence']:.2f})")
-        
-        # Automatic clipboard copy if enabled
-        if self.config.get('auto_copy_to_clipboard', True) and PYPERCLIP_AVAILABLE:
-            try:
-                pyperclip.copy(result['text'])
-                self._add_debug_message("📋 Automatically copied to clipboard")
-                
-                # Auto-paste if enabled
-                if self.config.get('auto_paste_mode', False):
-                    if self.autopaste_manager.is_available():
-                        # Use configurable delay
-                        delay_ms = int(self.config.get('auto_paste_delay', 1.0) * 1000)
-                        self._add_debug_message(f"⏳ Auto-pasting in {self.config.get('auto_paste_delay', 1.0):.1f} seconds...")
-                        self.root.after(delay_ms, lambda: self._perform_auto_paste(result['text']))
-                    else:
-                        self._add_debug_message("⚠️ Auto-paste not available - text copied to clipboard")
-                        self._add_debug_message(f"💡 {self.autopaste_manager.install_instructions().split(chr(10))[0]}")
-                
-                # Show temporary notification
-                self.status_label.configure(text="Copied to clipboard!", foreground="blue")
-                self.root.after(2000, lambda: self.status_label.configure(text="Ready", foreground="green"))
-                
-                # System tray notification
-                if self.system_tray.is_available():
-                    self.system_tray.show_notification(
-                        "Voice Transcription Complete",
-                        f"'{result['text'][:50]}{'...' if len(result['text']) > 50 else ''}'"
-                    )
-                    
-            except Exception as e:
-                self.logger.error(f"Auto clipboard copy failed: {e}")
-    
-    def _perform_auto_paste(self, text: str):
-        """Perform auto-paste operation."""
-        if self.autopaste_manager.auto_paste(text):
-            self._add_debug_message("✅ Auto-pasted successfully!")
-            self.status_label.configure(text="Auto-pasted!", foreground="green")
-        else:
-            self._add_debug_message("⚠️ Auto-paste failed - use Ctrl+V to paste")
-            self.status_label.configure(text="Ready to paste (Ctrl+V)", foreground="orange")
     
     def _copy_to_clipboard(self):
         """
@@ -855,125 +720,6 @@ class VoiceTranscriptionApp:
             ttk.Button(training_controls, text="🗑️ Clear Training Data", 
                         command=self._clear_voice_training).pack(side="left")
         
-        # Clipboard settings
-        clipboard_frame = ttk.LabelFrame(settings_window, text="Clipboard Settings", padding="10")
-        clipboard_frame.pack(fill="x", padx=10, pady=10)
-        
-        # Auto copy to clipboard
-        auto_copy_var = tk.BooleanVar(value=self.config.get('auto_copy_to_clipboard', True))
-        ttk.Checkbutton(clipboard_frame, text="Automatically copy transcriptions to clipboard", 
-                       variable=auto_copy_var).pack(anchor="w")
-        
-        ttk.Label(clipboard_frame, text="When enabled, every transcription will be automatically\ncopied to your clipboard for easy pasting.", 
-                 font=("Arial", 9), foreground="gray").pack(anchor="w", pady=(5,0))
-        
-        # Auto-paste mode
-        auto_paste_var = tk.BooleanVar(value=self.config.get('auto_paste_mode', False))
-        ttk.Checkbutton(clipboard_frame, text="Auto-paste mode (paste at cursor position)", 
-                       variable=auto_paste_var).pack(anchor="w", pady=(10,0))
-        
-        # Auto-paste status
-        if self.autopaste_manager.is_available():
-            status_text = f"✅ Auto-paste available using: {self.autopaste_manager.get_method()}"
-            status_color = "green"
-        else:
-            status_text = "⚠️ Auto-paste not available - install xdotool"
-            status_color = "orange"
-        
-        ttk.Label(clipboard_frame, text=status_text, 
-                 font=("Arial", 9), foreground=status_color).pack(anchor="w", pady=(5,0))
-        
-        if not self.autopaste_manager.is_available():
-            ttk.Label(clipboard_frame, text="To enable: sudo apt-get install xdotool", 
-                     font=("Arial", 8), foreground="gray").pack(anchor="w")
-        
-        # Auto-paste delay setting
-        delay_frame = ttk.Frame(clipboard_frame)
-        delay_frame.pack(fill="x", pady=(10,0))
-        ttk.Label(delay_frame, text="Auto-paste delay:").pack(side="left")
-        
-        auto_paste_delay_var = tk.DoubleVar(value=self.config.get('auto_paste_delay', 1.0))
-        delay_scale = ttk.Scale(delay_frame, from_=0.5, to=3.0, 
-                               variable=auto_paste_delay_var, orient="horizontal", length=150)
-        delay_scale.pack(side="left", padx=(10,0))
-        
-        delay_label = ttk.Label(delay_frame, text=f"{auto_paste_delay_var.get():.1f}s")
-        delay_label.pack(side="left", padx=(10,0))
-        
-        def update_delay_label(*args):
-            delay_label.config(text=f"{auto_paste_delay_var.get():.1f}s")
-        auto_paste_delay_var.trace_add("write", update_delay_label)
-        
-        # System tray settings
-        tray_frame = ttk.LabelFrame(settings_window, text="System Tray", padding="10")
-        tray_frame.pack(fill="x", padx=10, pady=10)
-        
-        # System tray status
-        if self.system_tray.is_available():
-            tray_status_text = "✅ System tray available"
-            tray_status_color = "green"
-        else:
-            tray_status_text = "⚠️ System tray not available - install pystray pillow"
-            tray_status_color = "orange"
-        
-        ttk.Label(tray_frame, text=tray_status_text, 
-                 font=("Arial", 9), foreground=tray_status_color).pack(anchor="w")
-        
-        if self.system_tray.is_available():
-            ttk.Label(tray_frame, text="• Right-click tray icon for quick actions\n• Use 'Minimize to Tray' to run in background", 
-                     font=("Arial", 8), foreground="gray").pack(anchor="w", pady=(5,0))
-        else:
-            ttk.Label(tray_frame, text="To enable: pip install pystray pillow", 
-                     font=("Arial", 8), foreground="gray").pack(anchor="w")
-        
-        # Audio feedback settings
-        audio_frame = ttk.LabelFrame(settings_window, text="Audio Feedback", padding="10")
-        audio_frame.pack(fill="x", padx=10, pady=10)
-        
-        # Enable/disable audio feedback
-        feedback_enabled_var = tk.BooleanVar(value=self.config.get('audio_feedback_enabled', True))
-        ttk.Checkbutton(audio_frame, text="Enable audio feedback", 
-                       variable=feedback_enabled_var).pack(anchor="w")
-        
-        # Feedback type selection
-        feedback_type_var = tk.StringVar(value=self.config.get('audio_feedback_type', 'beep'))
-        ttk.Label(audio_frame, text="Feedback type:").pack(anchor="w", pady=(10,0))
-        ttk.Radiobutton(audio_frame, text="System beep", 
-                       variable=feedback_type_var, value="beep").pack(anchor="w", padx=(20,0))
-        ttk.Radiobutton(audio_frame, text="Text-to-speech", 
-                       variable=feedback_type_var, value="tts").pack(anchor="w", padx=(20,0))
-        
-        # Volume control
-        volume_frame = ttk.Frame(audio_frame)
-        volume_frame.pack(fill="x", pady=(10,0))
-        ttk.Label(volume_frame, text="Volume:").pack(side="left")
-        
-        volume_var = tk.DoubleVar(value=self.config.get('audio_feedback_volume', 0.5))
-        volume_scale = ttk.Scale(volume_frame, from_=0.0, to=1.0, 
-                                variable=volume_var, orient="horizontal", length=200)
-        volume_scale.pack(side="left", padx=(10,0))
-        
-        volume_label = ttk.Label(volume_frame, text=f"{int(volume_var.get()*100)}%")
-        volume_label.pack(side="left", padx=(10,0))
-        
-        def update_volume_label(*args):
-            volume_label.config(text=f"{int(volume_var.get()*100)}%")
-        volume_var.trace_add("write", update_volume_label)
-        
-        # Test button
-        def test_audio_feedback():
-            # Temporarily apply settings
-            self.audio_feedback.set_enabled(feedback_enabled_var.get())
-            self.audio_feedback.set_feedback_type(feedback_type_var.get())
-            self.audio_feedback.set_volume(volume_var.get())
-            
-            # Play test sounds
-            self.audio_feedback.play_start()
-            self.root.after(1000, self.audio_feedback.play_stop)
-            
-        ttk.Button(audio_frame, text="🔊 Test Feedback", 
-                  command=test_audio_feedback).pack(pady=(10,0))
-        
         # Window size configuration
         window_frame = ttk.LabelFrame(settings_window, text="Window Settings", padding="10")
         window_frame.pack(fill="x", padx=10, pady=10)
@@ -1041,23 +787,6 @@ class VoiceTranscriptionApp:
                     self._add_debug_message(f"✅ Hotkey changed to: {new_hotkey}")
                 else:
                     self._add_debug_message(f"❌ Failed to change hotkey to: {new_hotkey}")
-            
-            # Save clipboard settings
-            self.config.set('auto_copy_to_clipboard', auto_copy_var.get())
-            self.config.set('auto_paste_mode', auto_paste_var.get())
-            self.config.set('auto_paste_delay', auto_paste_delay_var.get())
-            
-            # Save audio feedback settings
-            self.config.update({
-                'audio_feedback_enabled': feedback_enabled_var.get(),
-                'audio_feedback_type': feedback_type_var.get(),
-                'audio_feedback_volume': volume_var.get()
-            })
-            
-            # Apply audio feedback settings
-            self.audio_feedback.set_enabled(feedback_enabled_var.get())
-            self.audio_feedback.set_feedback_type(feedback_type_var.get())
-            self.audio_feedback.set_volume(volume_var.get())
             
             # Save window size
             self.config.update({
