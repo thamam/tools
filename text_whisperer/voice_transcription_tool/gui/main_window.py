@@ -18,6 +18,8 @@ import queue
 import time
 import logging
 import os
+import sqlite3
+from datetime import datetime
 from typing import Optional, Dict, Any
 
 # Import our modular components
@@ -127,38 +129,39 @@ class VoiceTranscriptionApp:
             self.root.after(1000, self._toggle_wake_word)  # Start after 1 second
     
     def _create_gui(self):
-        """
-        Create the main GUI.
-        
-        MIGRATION: Copy all the GUI creation code from your create_gui() method here.
-        Keep the same layout but use self.config, self.speech_manager etc.
-        """
+        """Create the modern GUI with tabbed interface."""
         self.root = tk.Tk()
         self.root.title("Voice Transcription Tool")
         
-        # Set window size from config
-        width = self.config.get('window_width', 900)
-        height = self.config.get('window_height', 800)
+        # Set window size from config (reduced default)
+        width = self.config.get('window_width', 800)
+        height = self.config.get('window_height', 600)
         self.root.geometry(f"{width}x{height}")
-        self.root.minsize(800, 600)
+        self.root.minsize(700, 500)
         
-        # Create main frame
-        main_frame = ttk.Frame(self.root, padding="10")
-        main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        # Configure modern styling
+        style = ttk.Style()
+        style.theme_use('clam')  # More modern theme
         
-        self._create_title(main_frame)
-        self._create_status_panel(main_frame)
-        self._create_controls(main_frame)
-        self._create_transcription_panel(main_frame)
-        self._create_history_panel(main_frame)
-        self._create_debug_panel(main_frame)
+        # Create main container
+        main_container = ttk.Frame(self.root)
+        main_container.pack(fill="both", expand=True, padx=10, pady=10)
         
-        # Configure grid weights
-        self.root.columnconfigure(0, weight=1)
-        self.root.rowconfigure(0, weight=1)
-        main_frame.columnconfigure(0, weight=1)
-        for i in range(6):
-            main_frame.rowconfigure(i, weight=1 if i in [3, 4, 5] else 0)
+        # Create top toolbar
+        self._create_toolbar(main_container)
+        
+        # Create notebook for tabs
+        self.notebook = ttk.Notebook(main_container)
+        self.notebook.pack(fill="both", expand=True, pady=(10, 0))
+        
+        # Create tabs
+        self._create_main_tab()
+        self._create_history_tab()
+        self._create_advanced_tab()
+        
+        # Advanced mode state
+        self.advanced_mode = self.config.get('advanced_mode', False)
+        self._update_advanced_visibility()
         
         # Load initial data
         self._load_recent_transcriptions()
@@ -166,11 +169,255 @@ class VoiceTranscriptionApp:
         # Bind close event
         self.root.protocol("WM_DELETE_WINDOW", self._on_closing)
     
-    def _create_title(self, parent):
-        """Create title section."""
-        title_label = ttk.Label(parent, text="Voice Transcription Tool", 
-                               font=("Arial", 16, "bold"))
-        title_label.grid(row=0, column=0, columnspan=3, pady=(0, 20))
+    def _create_toolbar(self, parent):
+        """Create modern toolbar with essential controls."""
+        toolbar = ttk.Frame(parent)
+        toolbar.pack(fill="x", pady=(0, 5))
+        
+        # Left side - main controls
+        left_frame = ttk.Frame(toolbar)
+        left_frame.pack(side="left")
+        
+        # Record button (large, prominent)
+        self.record_button = ttk.Button(left_frame, text="🎤 Start Recording", 
+                                       command=self._toggle_recording,
+                                       style="Accent.TButton")
+        self.record_button.pack(side="left", padx=(0, 10))
+        
+        # Status label
+        self.status_label = ttk.Label(left_frame, text="Ready", 
+                                     font=("Arial", 10, "bold"))
+        self.status_label.pack(side="left", padx=(10, 0))
+        
+        # Right side - mode and settings
+        right_frame = ttk.Frame(toolbar)
+        right_frame.pack(side="right")
+        
+        # Advanced mode toggle
+        self.advanced_toggle = ttk.Checkbutton(right_frame, text="Advanced Mode",
+                                              command=self._toggle_advanced_mode)
+        self.advanced_toggle.pack(side="right", padx=(10, 0))
+        
+        # Settings button
+        ttk.Button(right_frame, text="⚙️ Settings", 
+                  command=self._open_settings).pack(side="right", padx=(10, 0))
+        
+        # Minimize to tray button
+        if self.system_tray.is_available():
+            ttk.Button(right_frame, text="📱 Minimize", 
+                      command=self._hide_to_tray).pack(side="right", padx=(10, 0))
+    
+    def _create_main_tab(self):
+        """Create the main transcription tab."""
+        main_tab = ttk.Frame(self.notebook)
+        self.notebook.add(main_tab, text="🎤 Transcription")
+        
+        # Create main content areas
+        content_frame = ttk.Frame(main_tab)
+        content_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        # Top section - quick controls
+        control_frame = ttk.LabelFrame(content_frame, text="Quick Controls", padding="10")
+        control_frame.pack(fill="x", pady=(0, 10))
+        
+        controls_row = ttk.Frame(control_frame)
+        controls_row.pack(fill="x")
+        
+        # Progress bar
+        self.recording_progress = ttk.Progressbar(controls_row, mode='indeterminate')
+        self.recording_progress.pack(fill="x", pady=(0, 10))
+        
+        # Engine selection
+        engine_frame = ttk.Frame(controls_row)
+        engine_frame.pack(fill="x", pady=(0, 10))
+        
+        ttk.Label(engine_frame, text="Engine:").pack(side="left")
+        self.engine_var = tk.StringVar(value=self.speech_manager.get_current_engine())
+        engine_combo = ttk.Combobox(engine_frame, textvariable=self.engine_var,
+                                   values=self.speech_manager.get_available_engines(),
+                                   state="readonly")
+        engine_combo.pack(side="left", padx=(5, 10))
+        engine_combo.bind('<<ComboboxSelected>>', self._on_engine_change)
+        
+        # Copy button
+        ttk.Button(controls_row, text="📋 Copy to Clipboard",
+                  command=self._copy_to_clipboard).pack(side="right")
+        
+        # Main transcription area
+        text_frame = ttk.LabelFrame(content_frame, text="Transcription", padding="10")
+        text_frame.pack(fill="both", expand=True)
+        
+        # Create text widget with scrollbar
+        text_container = ttk.Frame(text_frame)
+        text_container.pack(fill="both", expand=True)
+        
+        self.transcription_text = scrolledtext.ScrolledText(text_container, 
+                                                          height=15, 
+                                                          font=("Arial", 11),
+                                                          wrap="word")
+        self.transcription_text.pack(fill="both", expand=True)
+    
+    def _create_history_tab(self):
+        """Create the transcription history tab."""
+        history_tab = ttk.Frame(self.notebook)
+        self.notebook.add(history_tab, text="📜 History")
+        
+        content_frame = ttk.Frame(history_tab)
+        content_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        # Controls
+        control_frame = ttk.Frame(content_frame)
+        control_frame.pack(fill="x", pady=(0, 10))
+        
+        ttk.Button(control_frame, text="🔄 Refresh",
+                  command=self._load_recent_transcriptions).pack(side="left")
+        ttk.Button(control_frame, text="🗑️ Clear History",
+                  command=self._clear_history).pack(side="left", padx=(10, 0))
+        
+        # History list
+        list_frame = ttk.LabelFrame(content_frame, text="Recent Transcriptions", padding="10")
+        list_frame.pack(fill="both", expand=True)
+        
+        # Create treeview for history
+        columns = ("Time", "Text", "Confidence")
+        self.history_tree = ttk.Treeview(list_frame, columns=columns, show="headings", height=10)
+        
+        # Configure columns
+        self.history_tree.heading("Time", text="Time")
+        self.history_tree.heading("Text", text="Transcription")
+        self.history_tree.heading("Confidence", text="Confidence")
+        
+        self.history_tree.column("Time", width=150)
+        self.history_tree.column("Text", width=400)
+        self.history_tree.column("Confidence", width=100)
+        
+        # Scrollbar for history
+        history_scroll = ttk.Scrollbar(list_frame, orient="vertical", command=self.history_tree.yview)
+        self.history_tree.configure(yscrollcommand=history_scroll.set)
+        
+        self.history_tree.pack(side="left", fill="both", expand=True)
+        history_scroll.pack(side="right", fill="y")
+        
+        # Bind double-click
+        self.history_tree.bind("<Double-1>", self._on_history_select)
+    
+    def _create_advanced_tab(self):
+        """Create the advanced features tab."""
+        advanced_tab = ttk.Frame(self.notebook)
+        self.notebook.add(advanced_tab, text="🔧 Advanced")
+        self.advanced_tab = advanced_tab
+        
+        content_frame = ttk.Frame(advanced_tab)
+        content_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        # Wake word section
+        wake_frame = ttk.LabelFrame(content_frame, text="Wake Word Detection", padding="10")
+        wake_frame.pack(fill="x", pady=(0, 10))
+        
+        wake_controls = ttk.Frame(wake_frame)
+        wake_controls.pack(fill="x")
+        
+        self.wake_word_button = ttk.Button(wake_controls, text="🎯 Wake Word: OFF",
+                                          command=self._toggle_wake_word)
+        self.wake_word_button.pack(side="left", padx=(0, 10))
+        
+        ttk.Button(wake_controls, text="🎓 Train Wake Word",
+                  command=self._train_wake_word).pack(side="left", padx=(0, 10))
+        
+        ttk.Button(wake_controls, text="🧪 Test Live",
+                  command=self._test_wake_word_live).pack(side="left")
+        
+        # Voice training section
+        training_frame = ttk.LabelFrame(content_frame, text="Voice Training", padding="10")
+        training_frame.pack(fill="x", pady=(0, 10))
+        
+        training_controls = ttk.Frame(training_frame)
+        training_controls.pack(fill="x")
+        
+        ttk.Button(training_controls, text="🎤 Start Voice Training",
+                  command=self._start_voice_training).pack(side="left", padx=(0, 10))
+        
+        if self.voice_trainer.has_training_data():
+            ttk.Button(training_controls, text="🗑️ Clear Training Data",
+                      command=self._clear_voice_training).pack(side="left")
+        
+        # Debug panel
+        debug_frame = ttk.LabelFrame(content_frame, text="Debug Messages", padding="10")
+        debug_frame.pack(fill="both", expand=True)
+        
+        self.debug_text = scrolledtext.ScrolledText(debug_frame, height=10, 
+                                                   font=("Consolas", 9))
+        self.debug_text.pack(fill="both", expand=True)
+    
+    def _toggle_advanced_mode(self):
+        """Toggle advanced mode visibility."""
+        self.advanced_mode = not self.advanced_mode
+        self.config.set('advanced_mode', self.advanced_mode)
+        self._update_advanced_visibility()
+    
+    def _update_advanced_visibility(self):
+        """Update visibility of advanced features."""
+        if hasattr(self, 'advanced_tab'):
+            if self.advanced_mode:
+                self.notebook.add(self.advanced_tab, text="🔧 Advanced")
+                self.advanced_toggle.state(['selected'])
+            else:
+                try:
+                    self.notebook.forget(self.advanced_tab)
+                except:
+                    pass
+                self.advanced_toggle.state(['!selected'])
+    
+    def _on_engine_change(self, event=None):
+        """Handle speech engine change."""
+        new_engine = self.engine_var.get()
+        if self.speech_manager.set_engine(new_engine):
+            self.config.set('current_engine', new_engine)
+            self._add_debug_message(f"🧠 Switched to {new_engine} engine")
+        else:
+            self._add_debug_message(f"❌ Failed to switch to {new_engine}")
+            # Reset to current engine
+            self.engine_var.set(self.speech_manager.get_current_engine())
+    
+    def _on_history_select(self, event):
+        """Handle history item selection."""
+        selection = self.history_tree.selection()
+        if selection:
+            item = self.history_tree.item(selection[0])
+            text = item['values'][1]  # Get transcription text
+            
+            # Insert into current transcription
+            current_text = self.transcription_text.get("1.0", tk.END).strip()
+            if current_text:
+                new_text = current_text + "\n\n" + text
+            else:
+                new_text = text
+            
+            self.transcription_text.delete("1.0", tk.END)
+            self.transcription_text.insert("1.0", new_text)
+            
+            self._add_debug_message("📋 History item added to current transcription")
+    
+    def _clear_history(self):
+        """Clear transcription history."""
+        if messagebox.askyesno("Clear History", 
+                              "Are you sure you want to clear all transcription history?"):
+            # Clear from database
+            try:
+                with sqlite3.connect(self.db_manager.db_path) as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("DELETE FROM transcriptions")
+                    conn.commit()
+                
+                # Clear from UI
+                for item in self.history_tree.get_children():
+                    self.history_tree.delete(item)
+                
+                self._add_debug_message("🗑️ Transcription history cleared")
+                
+            except Exception as e:
+                self.logger.error(f"Failed to clear history: {e}")
+                messagebox.showerror("Error", f"Failed to clear history: {e}")
     
     def _create_status_panel(self, parent):
         """Create status panel."""
@@ -818,12 +1065,12 @@ class VoiceTranscriptionApp:
         self._add_debug_message("🗑️ Transcription cleared")
 
     def _load_recent_transcriptions(self):
-        """
-        Load recent transcriptions into history view.
-        
-        MIGRATION: Copy logic from your load_recent_transcriptions() method here.
-        """
+        """Load recent transcriptions into history view."""
         try:
+            # Only load if history tree exists (GUI is initialized)
+            if not hasattr(self, 'history_tree'):
+                return
+                
             transcriptions = self.db_manager.get_recent_transcriptions(50)
             
             # Clear existing items
@@ -832,10 +1079,27 @@ class VoiceTranscriptionApp:
                 
             # Add new items
             for trans in transcriptions:
-                timestamp = trans['timestamp'][:19] if len(trans['timestamp']) > 19 else trans['timestamp']
-                text = trans['text'][:100] + "..." if len(trans['text']) > 100 else trans['text']
-                method = trans['method']
-                self.history_tree.insert("", "end", values=(timestamp, text, method))
+                # Format timestamp
+                try:
+                    if isinstance(trans['timestamp'], str):
+                        dt = datetime.fromisoformat(trans['timestamp'].replace('Z', '+00:00'))
+                        formatted_time = dt.strftime('%Y-%m-%d %H:%M')
+                    else:
+                        formatted_time = str(trans['timestamp'])[:16]
+                except:
+                    formatted_time = str(trans['timestamp'])[:16]
+                
+                # Truncate text if too long
+                text = trans['text']
+                if len(text) > 80:
+                    text = text[:80] + "..."
+                
+                # Get confidence or method
+                confidence = trans.get('confidence', 'N/A')
+                if isinstance(confidence, (int, float)):
+                    confidence = f"{confidence:.0%}"
+                
+                self.history_tree.insert("", "end", values=(formatted_time, text, confidence))
                 
         except Exception as e:
             self.logger.error(f"History load error: {e}")
