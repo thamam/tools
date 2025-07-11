@@ -1563,14 +1563,205 @@ class VoiceTranscriptionApp:
 
     def _start_voice_training(self):
         """Start voice training process."""
-        # TODO: Implement full voice training dialog
-        # For now, show a simple message
-        messagebox.showinfo("Voice Training", 
-                            "Voice training will open a new window where you can "
-                            "record sample phrases to improve recognition accuracy.\n\n"
-                            "This feature is ready for implementation!")
+        # Create training dialog
+        training_window = tk.Toplevel(self.root)
+        training_window.title("Voice Training")
+        training_window.geometry("600x500")
+        training_window.transient(self.root)
+        training_window.grab_set()
         
-        self._add_debug_message("🎤 Voice training requested (not yet implemented)")
+        # Start training session
+        session_info = self.voice_trainer.start_training_session()
+        
+        main_frame = ttk.Frame(training_window, padding="20")
+        main_frame.pack(fill="both", expand=True)
+        
+        # Title and instructions
+        ttk.Label(main_frame, text="Voice Training Session", 
+                 font=("Arial", 16, "bold")).pack(pady=(0, 10))
+        
+        ttk.Label(main_frame, text="Read each phrase clearly when you see it.\n"
+                                  "This helps improve transcription accuracy for your voice.",
+                 justify="center").pack(pady=(0, 20))
+        
+        # Progress
+        progress_frame = ttk.Frame(main_frame)
+        progress_frame.pack(fill="x", pady=(0, 20))
+        
+        progress_label = ttk.Label(progress_frame, text=f"Phrase 1 of {session_info['total_phrases']}")
+        progress_label.pack()
+        
+        progress_bar = ttk.Progressbar(progress_frame, mode='determinate', length=400)
+        progress_bar.pack(pady=(5, 0))
+        progress_bar['maximum'] = session_info['total_phrases']
+        progress_bar['value'] = 0
+        
+        # Current phrase display
+        phrase_frame = ttk.LabelFrame(main_frame, text="Read this phrase:", padding="20")
+        phrase_frame.pack(fill="both", expand=True, pady=(0, 20))
+        
+        phrase_text = tk.Text(phrase_frame, height=3, wrap="word", font=("Arial", 14))
+        phrase_text.pack(fill="both", expand=True)
+        phrase_text.insert("1.0", session_info['current_phrase'])
+        phrase_text.config(state="disabled")
+        
+        # Status
+        status_var = tk.StringVar(value="Press 'Start Recording' when ready")
+        status_label = ttk.Label(main_frame, textvariable=status_var, font=("Arial", 10))
+        status_label.pack(pady=(0, 10))
+        
+        # Accuracy display
+        accuracy_var = tk.StringVar(value="")
+        accuracy_label = ttk.Label(main_frame, textvariable=accuracy_var, font=("Arial", 10, "italic"))
+        accuracy_label.pack(pady=(0, 10))
+        
+        # Control buttons
+        button_frame = ttk.Frame(main_frame)
+        button_frame.pack()
+        
+        # Training state
+        is_recording = [False]
+        current_audio_file = [None]
+        
+        def update_phrase_display():
+            """Update the phrase display with current phrase."""
+            progress = self.voice_trainer.get_training_progress()
+            if progress['current_phrase']:
+                phrase_text.config(state="normal")
+                phrase_text.delete("1.0", tk.END)
+                phrase_text.insert("1.0", progress['current_phrase'])
+                phrase_text.config(state="disabled")
+                
+                progress_label.config(text=f"Phrase {progress['current_phrase_index'] + 1} of {progress['total_phrases']}")
+                progress_bar['value'] = progress['current_phrase_index']
+        
+        def start_recording():
+            """Start recording for current phrase."""
+            if is_recording[0]:
+                return
+                
+            is_recording[0] = True
+            record_button.config(text="🛑 Stop Recording", state="normal")
+            skip_button.config(state="disabled")
+            status_var.set("Recording... Speak now!")
+            
+            # Play start sound
+            if self.audio_feedback.enabled:
+                self.audio_feedback.play_start()
+            
+            # Start recording in background
+            def record_training():
+                try:
+                    audio_file = self.audio_recorder.start_recording(max_duration=10)
+                    if audio_file:
+                        current_audio_file[0] = audio_file
+                        training_window.after(0, stop_recording)
+                    else:
+                        training_window.after(0, lambda: handle_error("Recording failed"))
+                except Exception as e:
+                    training_window.after(0, lambda: handle_error(str(e)))
+            
+            threading.Thread(target=record_training, daemon=True).start()
+        
+        def stop_recording():
+            """Stop recording and process the audio."""
+            if not is_recording[0]:
+                return
+                
+            is_recording[0] = False
+            record_button.config(text="🎤 Start Recording", state="disabled")
+            status_var.set("Processing...")
+            
+            # Play stop sound
+            if self.audio_feedback.enabled:
+                self.audio_feedback.play_stop()
+            
+            # Process the recording
+            if current_audio_file[0]:
+                def process_recording():
+                    try:
+                        # Transcribe the audio
+                        result = self.speech_manager.transcribe_audio(current_audio_file[0])
+                        
+                        if result and result['success']:
+                            # Record the sample
+                            response = self.voice_trainer.record_sample(current_audio_file[0], result)
+                            
+                            training_window.after(0, lambda: handle_training_response(response))
+                        else:
+                            training_window.after(0, lambda: handle_error("Transcription failed"))
+                            
+                    except Exception as e:
+                        training_window.after(0, lambda: handle_error(str(e)))
+                
+                threading.Thread(target=process_recording, daemon=True).start()
+        
+        def handle_training_response(response):
+            """Handle response from voice trainer."""
+            if 'error' in response:
+                handle_error(response['error'])
+                return
+                
+            if 'accuracy' in response:
+                accuracy_var.set(f"Accuracy: {response['accuracy']*100:.0f}%")
+            
+            if response.get('training_complete'):
+                # Training completed
+                status_var.set(f"Training completed! Overall accuracy: {response['overall_accuracy']*100:.0f}%")
+                record_button.config(state="disabled")
+                skip_button.config(state="disabled")
+                close_button.config(text="Finish")
+                
+                messagebox.showinfo("Training Complete", 
+                                  f"Voice training completed successfully!\n\n"
+                                  f"Samples recorded: {response['samples_recorded']}\n"
+                                  f"Overall accuracy: {response['overall_accuracy']*100:.0f}%")
+            else:
+                # Move to next phrase
+                update_phrase_display()
+                status_var.set("Press 'Start Recording' for next phrase")
+                record_button.config(state="normal")
+                skip_button.config(state="normal")
+        
+        def skip_phrase():
+            """Skip current phrase."""
+            response = self.voice_trainer.skip_phrase()
+            handle_training_response(response)
+        
+        def handle_error(error_msg):
+            """Handle errors during training."""
+            is_recording[0] = False
+            status_var.set(f"Error: {error_msg}")
+            record_button.config(text="🎤 Start Recording", state="normal")
+            skip_button.config(state="normal")
+        
+        def on_close():
+            """Handle window closing."""
+            if self.voice_trainer.is_training:
+                if messagebox.askyesno("Cancel Training", 
+                                     "Training in progress. Do you want to cancel?"):
+                    self.voice_trainer.cancel_training()
+                    training_window.destroy()
+            else:
+                training_window.destroy()
+        
+        # Create buttons
+        record_button = ttk.Button(button_frame, text="🎤 Start Recording", 
+                                  command=start_recording)
+        record_button.pack(side="left", padx=(0, 10))
+        
+        skip_button = ttk.Button(button_frame, text="⏭️ Skip Phrase", 
+                               command=skip_phrase)
+        skip_button.pack(side="left", padx=(0, 10))
+        
+        close_button = ttk.Button(button_frame, text="Cancel", 
+                                command=on_close)
+        close_button.pack(side="left")
+        
+        # Handle window close event
+        training_window.protocol("WM_DELETE_WINDOW", on_close)
+        
+        self._add_debug_message("🎤 Voice training started")
 
     def _clear_voice_training(self):
         """Clear voice training data."""
