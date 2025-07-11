@@ -489,7 +489,7 @@ class VoiceTranscriptionApp:
         """Handle wake word detection."""
         # Play audio feedback if enabled
         if hasattr(self, 'audio_feedback') and self.audio_feedback.enabled:
-            self.audio_feedback.play_start_sound()
+            self.audio_feedback.play_start()
             
         # Add visual notification
         self._add_debug_message(f"🎯 Wake word detected: '{wake_word}' (score: {score:.2f})")

@@ -175,3 +175,10 @@ class TestSimpleWakeWordDetector:
         
         # Should return True for _initialize_model
         assert detector._initialize_model() is True
+    
+    def test_simple_detector_availability_override(self):
+        """Test that simple detector has its own availability check."""
+        detector = SimpleWakeWordDetector()
+        
+        # Simple detector should be available (only needs PyAudio)
+        assert detector.is_available() is True

@@ -457,6 +457,13 @@ class SimpleWakeWordDetector(WakeWordDetector):
         self.energy_threshold = 1000  # Audio energy threshold
         self.training_samples = []  # Store training samples to adjust threshold
         
+    def is_available(self) -> bool:
+        """Simple detector only needs PyAudio."""
+        if not PYAUDIO_AVAILABLE:
+            self.logger.warning("PyAudio not available for wake word detection")
+            return False
+        return True
+    
     def _initialize_model(self) -> bool:
         """No model needed for simple detector."""
         self.logger.info("Using simple wake word detector (energy-based)")

@@ -1,0 +1,21 @@
+[13:49:04] 🎯 Using simple wake word detection
+[13:49:05] 🚀 Voice Transcription Tool initialized
+[13:49:05] 🎤 Audio method: pyaudio
+[13:49:05] 🧠 Speech engine: whisper
+[13:49:05] 🔥 Hotkey: capslock
+[13:49:05] 🖥️ System tray enabled
+[13:49:06] ❌ Failed to start wake word detection
+[13:49:14] 🔥 Hotkey mode activated
+[13:49:18] 🔥 Hotkey activated: capslock
+[13:49:18] 🎤 Recording started
+[13:49:18] 🔥 Hotkey activated: capslock
+[13:49:18] 🛑 Recording stopped
+[13:49:18] ✅ Recording completed
+[13:49:18] 🔄 Processing audio for transcription...
+[13:49:19] ✅ Transcription completed: '...'
+[13:49:19] 🎯 High confidence transcription (0.95)
+[13:49:19] 📋 Automatically copied to clipboard
+[13:49:19] ⏳ Auto-pasting in 1.0 seconds...
+[13:49:20] ❌ Failed to start wake word detection
+[13:49:20] ✅ Auto-pasted successfully!
+
