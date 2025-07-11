@@ -48,7 +48,12 @@ class DebugMessageHandler:
         
         # Notify callbacks
         for callback in self.callbacks:
-            callback(debug_msg)
+            try:
+                callback(debug_msg)
+            except Exception as e:
+                # Log exception but don't stop other callbacks
+                import logging
+                logging.getLogger(__name__).warning(f"Callback exception: {e}")
     
     def add_callback(self, callback):
         """Add a callback for new messages."""
