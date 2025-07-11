@@ -7,7 +7,7 @@
   "window_width": 1073,
   "window_height": 1013,
   "record_seconds": 30,
-  "last_updated": "2025-07-11T14:49:08.999755",
+  "last_updated": "2025-07-11T15:03:10.223850",
   "audio_feedback_enabled": true,
   "audio_feedback_type": "beep",
   "audio_feedback_volume": 0.30357142857142855,
@@ -16,7 +16,7 @@
   "auto_paste_delay": 1.0,
   "wake_word_enabled": true,
   "wake_words": [
-    "hey Noam"
+    "hey tiger"
   ],
-  "wake_word_threshold": 0.5
+  "wake_word_threshold": 0.8714285714285713
 }

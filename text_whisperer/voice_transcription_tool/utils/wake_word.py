@@ -63,7 +63,7 @@ class WakeWordDetector:
         
         # Performance tracking
         self.last_activation = 0
-        self.activation_cooldown = 2.0  # Seconds between activations
+        self.activation_cooldown = 3.0  # Seconds between activations (increased from 2.0)
         
         # Initialize if available
         if self.is_available():
@@ -450,12 +450,15 @@ class SimpleWakeWordDetector(WakeWordDetector):
     """Simplified wake word detector using basic audio pattern matching."""
     
     def __init__(self, callback: Optional[Callable] = None,
-                 wake_phrase: str = "hey computer"):
+                 wake_phrase: str = "hey computer", threshold: float = 0.5):
         """Initialize simple detector (fallback when openWakeWord unavailable)."""
-        super().__init__(callback)
+        super().__init__(callback, threshold=threshold)
         self.wake_phrase = wake_phrase.lower()
-        self.energy_threshold = 1000  # Audio energy threshold
+        # Higher default threshold to reduce false positives
+        self.energy_threshold = 3000  # Audio energy threshold (increased from 1000)
         self.training_samples = []  # Store training samples to adjust threshold
+        # Map the 0-1 threshold to energy multiplier (0.5 = 1x, 0.8 = 2x, etc)
+        self.threshold_multiplier = 1.0 + (threshold - 0.5) * 2
         
     def is_available(self) -> bool:
         """Simple detector only needs PyAudio."""
@@ -511,9 +514,12 @@ class SimpleWakeWordDetector(WakeWordDetector):
         energy_16bit = energy * 32768
         
         # Check if above threshold (indicates speech)
-        if energy_16bit > self.energy_threshold:
+        # Apply threshold multiplier based on user setting
+        effective_threshold = self.energy_threshold * self.threshold_multiplier
+        if energy_16bit > effective_threshold:
             current_time = time.time()
             if current_time - self.last_activation >= self.activation_cooldown:
                 self.last_activation = current_time
-                confidence = min(1.0, energy_16bit / (self.energy_threshold * 2))
+                # Lower confidence scores to prevent continuous triggering
+                confidence = min(0.7, energy_16bit / (effective_threshold * 3))
                 self._on_wake_word_detected("speech detected", confidence)

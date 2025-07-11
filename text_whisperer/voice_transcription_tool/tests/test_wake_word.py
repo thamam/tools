@@ -115,7 +115,7 @@ class TestWakeWordDetector:
             callback=mock_callback,
             wake_words=["hey jarvis"]  # Ensure wake word is in list
         )
-        detector.activation_cooldown = 2.0  # 2 second cooldown
+        detector.activation_cooldown = 3.0  # 3 second cooldown
         
         # The cooldown happens in _process_audio_chunk, not _on_wake_word_detected
         # So we test the cooldown logic directly
@@ -151,7 +151,7 @@ class TestSimpleWakeWordDetector:
         
         assert detector is not None
         assert detector.wake_phrase == "hey assistant"
-        assert detector.energy_threshold == 1000
+        assert detector.energy_threshold == 3000  # Updated default threshold
     
     def test_simple_detector_energy_detection(self):
         """Test energy-based detection."""

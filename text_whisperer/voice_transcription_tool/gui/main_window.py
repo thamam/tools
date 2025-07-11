@@ -481,7 +481,8 @@ class VoiceTranscriptionApp:
                 # Fall back to simple detector
                 self.wake_word_detector = SimpleWakeWordDetector(
                     callback=self._on_wake_word_detected,
-                    wake_phrase=self.config.get('wake_words', ["hey computer"])[0]
+                    wake_phrase=self.config.get('wake_words', ["hey computer"])[0],
+                    threshold=self.config.get('wake_word_threshold', 0.5)
                 )
                 self._add_debug_message("🎯 Using simple wake word detection")
                 
@@ -514,12 +515,17 @@ class VoiceTranscriptionApp:
     
     def _on_wake_word_detected(self, wake_word: str, score: float):
         """Handle wake word detection."""
-        # Play audio feedback if enabled
-        if hasattr(self, 'audio_feedback') and self.audio_feedback.enabled:
-            self.audio_feedback.play_start()
+        # Check if already recording or processing
+        if self.is_recording:
+            self._add_debug_message(f"⏭️ Wake word ignored - already recording")
+            return
             
         # Add visual notification
         self._add_debug_message(f"🎯 Wake word detected: '{wake_word}' (score: {score:.2f})")
+        
+        # Play audio feedback if enabled
+        if hasattr(self, 'audio_feedback') and self.audio_feedback.enabled:
+            self.audio_feedback.play_start()
         
         # Update UI to show detection
         self.root.after(0, self._flash_wake_word_indicator)
