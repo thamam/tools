@@ -10,6 +10,7 @@ This is now a clean, modular entry point that uses all our separated modules.
 
 import sys
 import logging
+import argparse
 from pathlib import Path
 
 # Add the project root to Python path
@@ -20,13 +21,47 @@ from utils.logger import setup_logging
 from gui.main_window import VoiceTranscriptionApp
 
 
+def parse_args():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(
+        description="Voice Transcription Tool - Speech-to-text with global hotkeys"
+    )
+    parser.add_argument(
+        "--minimized", 
+        action="store_true",
+        help="Start minimized to system tray"
+    )
+    parser.add_argument(
+        "--debug", 
+        action="store_true",
+        help="Enable debug logging"
+    )
+    parser.add_argument(
+        "--no-tray", 
+        action="store_true",
+        help="Disable system tray"
+    )
+    return parser.parse_args()
+
+
 def main():
     """Main entry point for the Voice Transcription Tool."""
     try:
+        # Parse command line arguments
+        args = parse_args()
+        
         # Setup logging
-        setup_logging()
+        log_level = logging.DEBUG if args.debug else logging.INFO
+        setup_logging(level=log_level)
         logger = logging.getLogger(__name__)
         logger.info("=== Voice Transcription Tool Starting ===")
+        
+        if args.debug:
+            logger.info("Debug mode enabled")
+        if args.minimized:
+            logger.info("Starting minimized to system tray")
+        if args.no_tray:
+            logger.info("System tray disabled")
         
         # Check dependencies
         missing_deps = check_dependencies()
@@ -42,7 +77,10 @@ def main():
         
         # Start the application
         logger.info("Starting modular voice transcription application")
-        app = VoiceTranscriptionApp()
+        app = VoiceTranscriptionApp(
+            start_minimized=args.minimized,
+            enable_tray=not args.no_tray
+        )
         app.run()
         
         return 0

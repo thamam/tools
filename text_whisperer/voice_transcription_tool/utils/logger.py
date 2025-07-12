@@ -10,7 +10,7 @@ from datetime import datetime
 from pathlib import Path
 
 
-def setup_logging():
+def setup_logging(level=logging.INFO):
     """Setup comprehensive logging system."""
     # Create logs directory
     logs_dir = Path("logs")
@@ -20,7 +20,7 @@ def setup_logging():
     log_filename = logs_dir / f"voice_transcription_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
     
     logging.basicConfig(
-        level=logging.DEBUG,
+        level=level,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         handlers=[
             logging.FileHandler(log_filename),

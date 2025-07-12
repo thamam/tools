@@ -57,9 +57,13 @@ class VoiceTranscriptionApp:
     modular components instead of having everything in one class.
     """
     
-    def __init__(self):
+    def __init__(self, start_minimized: bool = False, enable_tray: bool = True):
         self.logger = logging.getLogger(__name__)
         self.logger.info("Initializing Voice Transcription App")
+        
+        # CLI options
+        self.start_minimized = start_minimized
+        self.enable_tray = enable_tray
         
         # Initialize core components (modular!)
         self.config = ConfigManager()
@@ -641,14 +645,16 @@ class VoiceTranscriptionApp:
         self.system_tray.set_quit_callback(self._on_closing)
         self.system_tray.set_record_callback(self._toggle_recording)
         
-        # Start system tray
-        if self.system_tray.start():
+        # Start system tray (if enabled)
+        if self.enable_tray and self.system_tray.start():
             self.logger.info("System tray started successfully")
             
             # Add minimize to tray option
             self._add_tray_options_to_gui()
-        else:
+        elif self.enable_tray:
             self.logger.warning("Failed to start system tray")
+        else:
+            self.logger.info("System tray disabled via CLI option")
     
     def _add_tray_options_to_gui(self):
         """Add system tray options to the GUI."""
@@ -979,6 +985,13 @@ class VoiceTranscriptionApp:
     def run(self):
         """Run the application."""
         try:
+            # Start minimized if requested
+            if self.start_minimized:
+                self.logger.info("Starting minimized to system tray")
+                self.root.withdraw()  # Hide the window
+                if hasattr(self, 'system_tray') and self.system_tray:
+                    self._add_debug_message("🔵 Started minimized - check system tray!")
+            
             self.root.mainloop()
         except KeyboardInterrupt:
             self._on_closing()
