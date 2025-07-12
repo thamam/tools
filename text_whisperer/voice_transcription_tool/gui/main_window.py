@@ -380,13 +380,58 @@ class VoiceTranscriptionApp:
             self.engine_var.set(self.speech_manager.get_current_engine())
     
     def _on_history_select(self, event):
-        """Handle history item selection."""
+        """Handle history item selection - show full text and copy option."""
         selection = self.history_tree.selection()
         if selection:
-            item = self.history_tree.item(selection[0])
-            text = item['values'][1]  # Get transcription text
+            item_id = selection[0]
             
-            # Insert into current transcription
+            # Try to get full text first, fallback to displayed text
+            try:
+                full_text = self.history_tree.set(item_id, "full_text")
+                if not full_text:  # Fallback for older entries
+                    full_text = self.history_tree.item(item_id)['values'][1]
+            except:
+                full_text = self.history_tree.item(item_id)['values'][1]
+            
+            # Show full text in a popup window
+            self._show_full_transcription(full_text)
+            
+            self._add_debug_message("📋 Full transcription displayed")
+    
+    def _show_full_transcription(self, text: str):
+        """Show full transcription text in a popup window."""
+        popup = tk.Toplevel(self.root)
+        popup.title("Full Transcription")
+        popup.geometry("600x400")
+        popup.resizable(True, True)
+        
+        # Create text widget with scrollbars
+        frame = tk.Frame(popup)
+        frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        text_widget = tk.Text(frame, wrap=tk.WORD, width=70, height=20)
+        scrollbar = tk.Scrollbar(frame, orient=tk.VERTICAL, command=text_widget.yview)
+        text_widget.configure(yscrollcommand=scrollbar.set)
+        
+        text_widget.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # Insert text and make it read-only
+        text_widget.insert("1.0", text)
+        text_widget.config(state=tk.DISABLED)
+        
+        # Button frame
+        button_frame = tk.Frame(popup)
+        button_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
+        
+        # Copy to clipboard button
+        def copy_to_clipboard():
+            popup.clipboard_clear()
+            popup.clipboard_append(text)
+            self._add_debug_message("📋 Text copied to clipboard")
+        
+        # Insert to current transcription button
+        def insert_to_current():
             current_text = self.transcription_text.get("1.0", tk.END).strip()
             if current_text:
                 new_text = current_text + "\n\n" + text
@@ -395,8 +440,16 @@ class VoiceTranscriptionApp:
             
             self.transcription_text.delete("1.0", tk.END)
             self.transcription_text.insert("1.0", new_text)
-            
-            self._add_debug_message("📋 History item added to current transcription")
+            popup.destroy()
+            self._add_debug_message("📋 Text inserted to current transcription")
+        
+        tk.Button(button_frame, text="Copy to Clipboard", command=copy_to_clipboard).pack(side=tk.LEFT, padx=(0, 5))
+        tk.Button(button_frame, text="Insert to Current", command=insert_to_current).pack(side=tk.LEFT, padx=5)
+        tk.Button(button_frame, text="Close", command=popup.destroy).pack(side=tk.RIGHT)
+        
+        # Center the popup
+        popup.transient(self.root)
+        popup.grab_set()
     
     def _clear_history(self):
         """Clear transcription history."""
@@ -1117,17 +1170,21 @@ class VoiceTranscriptionApp:
                 except:
                     formatted_time = str(trans['timestamp'])[:16]
                 
-                # Truncate text if too long
-                text = trans['text']
-                if len(text) > 80:
-                    text = text[:80] + "..."
+                # Store full text and create display text
+                full_text = trans['text']
+                display_text = full_text
+                if len(display_text) > 120:  # Increased from 80 to 120 characters
+                    display_text = display_text[:120] + "..."
                 
                 # Get confidence or method
                 confidence = trans.get('confidence', 'N/A')
                 if isinstance(confidence, (int, float)):
                     confidence = f"{confidence:.0%}"
                 
-                self.history_tree.insert("", "end", values=(formatted_time, text, confidence))
+                # Store full text in the tree item for later retrieval
+                item_id = self.history_tree.insert("", "end", values=(formatted_time, display_text, confidence))
+                # Store full text as a tag so we can retrieve it later
+                self.history_tree.set(item_id, "full_text", full_text)
                 
         except Exception as e:
             self.logger.error(f"History load error: {e}")
