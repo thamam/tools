@@ -19,20 +19,31 @@ if pgrep -f "voice_transcription_tool/run.py" > /dev/null; then
     exit 1
 fi
 
-# Set environment variables for GUI access when using sudo
-export DISPLAY="${DISPLAY:-:0}"
-export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u $USER)}"
-export PULSE_RUNTIME_PATH="${PULSE_RUNTIME_PATH:-/run/user/$(id -u $USER)/pulse}"
+# Get current user info
+CURRENT_USER="$(whoami)"
+USER_ID="$(id -u)"
 
-# Get the real user (in case we're already running under sudo)
-REAL_USER="${SUDO_USER:-$USER}"
-export XAUTHORITY="/home/$REAL_USER/.Xauthority"
+# Copy X11 authentication to a temporary location accessible by root
+TEMP_XAUTH="/tmp/.voice_transcription_xauth"
+rm -f "$TEMP_XAUTH"
+touch "$TEMP_XAUTH"
+xauth nlist "$DISPLAY" | xauth -f "$TEMP_XAUTH" nmerge -
 
 echo "🚀 Starting application with global hotkeys..."
 cd "$SCRIPT_DIR"
 
-# Run with sudo, preserving environment variables
-sudo -E "$VENV_PYTHON" run.py
+# Run with sudo, setting proper environment
+sudo -E \
+    DISPLAY="$DISPLAY" \
+    XAUTHORITY="$TEMP_XAUTH" \
+    XDG_RUNTIME_DIR="/run/user/$USER_ID" \
+    PULSE_RUNTIME_PATH="/run/user/$USER_ID/pulse" \
+    HOME="/home/$CURRENT_USER" \
+    USER="$CURRENT_USER" \
+    "$VENV_PYTHON" run.py
+
+# Clean up
+rm -f "$TEMP_XAUTH"
 
 echo ""
 echo "Application stopped."

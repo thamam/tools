@@ -18,7 +18,11 @@
       "Bash(systemctl:*)",
       "Bash(journalctl:*)",
       "Bash(./start_on_login.sh:*)",
-      "Bash(./status_and_control.sh)"
+      "Bash(./status_and_control.sh)",
+      "Bash(groups)",
+      "Bash(pip3 install:*)",
+      "Bash(mv:*)",
+      "Bash(./stop_background_process.sh:*)"
     ],
     "deny": []
   }

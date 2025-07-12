@@ -1,5 +1,6 @@
 # Core dependencies
-keyboard>=0.13.5
+# keyboard>=0.13.5  # Replaced with pynput (see LINUX_HOTKEY_SOLUTION.md)
+pynput>=1.8.0  # Cross-platform hotkeys without sudo
 pyperclip>=1.9.0
 
 # Audio recording

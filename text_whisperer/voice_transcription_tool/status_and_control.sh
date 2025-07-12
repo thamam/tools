@@ -20,10 +20,16 @@ fi
 
 echo ""
 echo "🎮 Control Commands:"
-echo "   Start (normal):     ./start_on_login.sh"
-echo "   Start (w/hotkeys):  ./start_with_hotkeys.sh"
+echo "   Start:              ./start_on_login.sh"
 echo "   Stop:               ./stop_background_process.sh"
 echo "   Status:             ./status_and_control.sh"
+echo ""
+echo "🔥 Global Hotkey Setup:"
+if groups | grep -q '\binput\b'; then
+    echo "   ✅ You are in the 'input' group - hotkeys should work!"
+else
+    echo "   ❌ Not in 'input' group - run: ./setup_input_group.sh"
+fi
 echo ""
 echo "📋 Auto-start:"
 if [ -f "$HOME/.config/autostart/voice-transcription-tool.desktop" ]; then
