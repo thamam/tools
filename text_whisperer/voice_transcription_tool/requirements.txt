@@ -6,7 +6,7 @@ pyperclip>=1.9.0
 # Audio recording
 pyaudio>=0.2.14
 
-# Speech recognition engines (choose one or both)
+# Speech recognition engines (at least one required)
 openai-whisper>=20231117
 SpeechRecognition>=3.10.0
 
@@ -15,14 +15,23 @@ torch>=1.9.0
 numpy>=1.21.0
 requests>=2.25.0
 
-# Optional dependencies for audio feedback
-# pygame>=2.0.0  # For better audio playback
-# pyttsx3>=2.90  # For text-to-speech feedback
+# Audio feedback (currently used)
+pygame>=2.0.0  # For audio playback and feedback sounds
 
-# Optional dependencies for system tray
-# pystray>=0.19.0  # For system tray functionality
-# pillow>=8.0.0   # For system tray icons
+# System tray functionality (currently used)
+pystray>=0.19.0  # For system tray functionality
+pillow>=8.0.0   # For system tray icons
+
+# Cross-platform clipboard paste (optional but recommended)
+pyautogui>=0.9.50  # For cross-platform auto-paste fallback
 
 # Optional dependencies for wake word detection
 # openwakeword>=0.6.0  # For wake word detection
 # onnxruntime>=1.16.0  # Required for openWakeWord
+
+# Optional TTS feedback (not currently used)
+# pyttsx3>=2.90  # For text-to-speech feedback
+
+# Development dependencies (for testing)
+pytest>=7.0.0  # Test framework
+pytest-cov>=4.0.0  # Coverage reporting
