@@ -1,0 +1,22 @@
+{
+  "hotkey_combination": "alt+d",
+  "current_engine": "whisper",
+  "audio_rate": 16000,
+  "audio_channels": 1,
+  "audio_method": "",
+  "window_width": 900,
+  "window_height": 800,
+  "record_seconds": 30,
+  "last_updated": "2025-07-13T00:18:35.587527",
+  "auto_copy_to_clipboard": true,
+  "auto_paste_mode": true,
+  "auto_paste_delay": 1.0,
+  "audio_feedback_enabled": true,
+  "audio_feedback_type": "beep",
+  "audio_feedback_volume": 0.5,
+  "wake_word_enabled": false,
+  "wake_words": [
+    "hey computer"
+  ],
+  "wake_word_threshold": 0.5
+}

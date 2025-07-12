@@ -24,7 +24,8 @@
       "Bash(mv:*)",
       "Bash(./stop_background_process.sh:*)",
       "Bash(sqlite3:*)",
-      "Bash(pgrep:*)"
+      "Bash(pgrep:*)",
+      "Bash(pip freeze)"
     ],
     "deny": []
   }
