@@ -744,9 +744,9 @@ class VoiceTranscriptionApp:
         # Play start feedback sound
         self.audio_feedback.play_start()
         
-        # Update system tray icon
-        if self.system_tray.is_available():
-            self.system_tray.update_icon_state(True)
+        # Update system tray icon to show recording
+        if hasattr(self, 'system_tray') and self.system_tray:
+            self.system_tray.start_recording_animation()
         
         # Start recording in a separate thread
         max_duration = self.config.get('record_seconds', 30)
@@ -767,9 +767,9 @@ class VoiceTranscriptionApp:
         # Play stop feedback sound
         self.audio_feedback.play_stop()
         
-        # Update system tray icon
-        if self.system_tray.is_available():
-            self.system_tray.update_icon_state(False)
+        # Update system tray icon to stop recording animation
+        if hasattr(self, 'system_tray') and self.system_tray:
+            self.system_tray.stop_recording_animation()
         
         # Stop the recorder
         self.audio_recorder.stop_recording()
@@ -898,12 +898,16 @@ class VoiceTranscriptionApp:
         self.root.after(0, lambda: self._update_progress_bar(elapsed_time))
     
     def _update_progress_bar(self, elapsed_time):
-        """Update the progress bar."""
+        """Update the progress bar and system tray timer."""
         if self.is_recording:
             self.recording_progress['value'] = elapsed_time
             
             max_duration = self.config.get('record_seconds', 30)
             remaining = max(0, max_duration - elapsed_time)
+            
+            # Update system tray icon with timer
+            if hasattr(self, 'system_tray') and self.system_tray:
+                self.system_tray.update_timer(int(remaining))
             
             if remaining <= 3:
                 self.status_label.configure(

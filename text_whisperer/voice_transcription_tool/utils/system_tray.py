@@ -44,13 +44,16 @@ class SystemTrayManager:
         if not PYSTRAY_AVAILABLE:
             self.logger.warning("pystray not available - system tray disabled")
     
-    def create_icon(self) -> Optional['Image.Image']:
-        """Create a simple tray icon."""
+    def create_icon(self, recording: bool = False, timer_text: str = "") -> Optional['Image.Image']:
+        """Create a tray icon with optional recording indicator and timer."""
         try:
             # Create a simple microphone icon
             size = 64
             image = Image.new('RGBA', (size, size), (0, 0, 0, 0))
             draw = ImageDraw.Draw(image)
+            
+            # Choose color based on recording state
+            color = (220, 20, 60, 255) if recording else (70, 130, 180, 255)  # Red when recording, steel blue when idle
             
             # Draw microphone shape
             # Base circle
@@ -58,25 +61,49 @@ class SystemTrayManager:
             radius = size // 4
             draw.ellipse([center - radius, center - radius, 
                          center + radius, center + radius], 
-                        fill=(70, 130, 180, 255))  # Steel blue
+                        fill=color)
             
             # Microphone body
             body_width = radius // 2
             body_height = radius
             draw.rectangle([center - body_width, center - body_height//2,
                           center + body_width, center + body_height*1.5],
-                         fill=(70, 130, 180, 255))
+                         fill=color)
             
             # Stand base
             base_width = radius * 1.5
             draw.line([center - base_width, size - 8, 
                       center + base_width, size - 8], 
-                     fill=(70, 130, 180, 255), width=4)
+                     fill=color, width=4)
             
             # Center pole
             draw.line([center, center + body_height*1.5, 
                       center, size - 8], 
-                     fill=(70, 130, 180, 255), width=3)
+                     fill=color, width=3)
+            
+            # Add recording indicator (red dot)
+            if recording:
+                dot_radius = 6
+                draw.ellipse([size - dot_radius*2, 2, size - 2, dot_radius*2], 
+                           fill=(255, 0, 0, 255))  # Bright red recording dot
+            
+            # Add timer text if provided
+            if timer_text and recording:
+                try:
+                    # Use default font for timer text
+                    text_color = (255, 255, 255, 255)  # White text
+                    # Position timer text at bottom
+                    bbox = draw.textbbox((0, 0), timer_text)
+                    text_width = bbox[2] - bbox[0]
+                    text_x = (size - text_width) // 2
+                    text_y = size - 16
+                    
+                    # Add background for better readability
+                    draw.rectangle([text_x - 2, text_y - 2, text_x + text_width + 2, text_y + 12], 
+                                 fill=(0, 0, 0, 180))  # Semi-transparent black background
+                    draw.text((text_x, text_y), timer_text, fill=text_color)
+                except Exception as e:
+                    self.logger.warning(f"Could not add timer text to icon: {e}")
             
             return image
         except Exception as e:
@@ -164,6 +191,42 @@ class SystemTrayManager:
         except Exception as e:
             self.logger.error(f"Failed to start system tray: {e}")
             return False
+    
+    def update_recording_status(self, recording: bool, timer_text: str = ""):
+        """Update the tray icon to show recording status and timer."""
+        if not self.tray_icon or not self.is_running:
+            return
+        
+        try:
+            # Create new icon with recording status
+            new_icon = self.create_icon(recording=recording, timer_text=timer_text)
+            if new_icon:
+                self.tray_icon.icon = new_icon
+                
+                # Update tooltip with recording status
+                if recording:
+                    tooltip = f"Voice Transcription - Recording ({timer_text})" if timer_text else "Voice Transcription - Recording"
+                else:
+                    tooltip = "Voice Transcription Tool"
+                self.tray_icon.title = tooltip
+                
+        except Exception as e:
+            self.logger.error(f"Failed to update tray icon: {e}")
+    
+    def start_recording_animation(self):
+        """Start the recording indicator on the tray icon."""
+        self.update_recording_status(recording=True)
+    
+    def stop_recording_animation(self):
+        """Stop the recording indicator on the tray icon."""
+        self.update_recording_status(recording=False)
+    
+    def update_timer(self, seconds: int):
+        """Update the timer display on the tray icon."""
+        if seconds > 0:
+            mins, secs = divmod(seconds, 60)
+            timer_text = f"{mins:02d}:{secs:02d}"
+            self.update_recording_status(recording=True, timer_text=timer_text)
     
     def stop(self):
         """Stop the system tray icon."""
