@@ -130,6 +130,20 @@ class AutoPasteManager:
             return True
             
         return False
+    
+    def _is_browser_window(self, window_name: str) -> bool:
+        """Check if the window appears to be a web browser."""
+        browser_indicators = [
+            'firefox', 'chrome', 'chromium', 'safari', 'opera', 'edge',
+            'brave', 'vivaldi', 'webkit', 'mozilla', 'browser',
+            # Common browser window class names
+            'Firefox', 'Chrome', 'Chromium', 'Safari', 'Opera', 'Edge',
+            'Brave-browser', 'Vivaldi', 'WebKit', 'Navigator',
+            # Browser-specific indicators
+            'www.', 'http', '.com', '.org', '.net'
+        ]
+        window_name_lower = window_name.lower()
+        return any(indicator.lower() in window_name_lower for indicator in browser_indicators)
 
     def auto_paste(self, text: str, delay: float = 0.1) -> bool:
         """
@@ -176,6 +190,46 @@ class AutoPasteManager:
                 subprocess.run(["xdotool", "windowactivate", self.active_window_id], check=True)
                 # Small delay to ensure window is focused
                 time.sleep(0.1)
+            
+            # Check if this is a browser and handle focus issues
+            is_browser = self._is_browser_window(self.active_window_name or "")
+            if is_browser:
+                self.logger.info("Detected browser - applying browser-specific focus handling")
+                # Click in the center of the window to ensure proper focus
+                # but first get window geometry
+                try:
+                    result = subprocess.run(["xdotool", "getwindowgeometry", self.active_window_id], 
+                                          capture_output=True, text=True, check=True)
+                    # Parse geometry to get center coordinates
+                    # Format: "Window 123: Geometry: 1920x1080+0+0  Screen: 0"
+                    lines = result.stdout.strip().split('\n')
+                    for line in lines:
+                        if 'Geometry:' in line:
+                            # Extract dimensions and position
+                            geom_part = line.split('Geometry:')[1].strip().split()[0]
+                            # Format: 1920x1080+0+0
+                            dims, pos = geom_part.split('+', 1)
+                            width, height = dims.split('x')
+                            x_offset, y_offset = pos.split('+')
+                            
+                            # Click in center of window (avoiding address bar area)
+                            center_x = int(x_offset) + int(width) // 2
+                            center_y = int(y_offset) + int(height) // 2 + 100  # Offset down from address bar
+                            
+                            subprocess.run(["xdotool", "mousemove", str(center_x), str(center_y)], check=True)
+                            subprocess.run(["xdotool", "click", "1"], check=True)
+                            time.sleep(0.2)  # Extra delay for browser focus
+                            break
+                except Exception as e:
+                    self.logger.warning(f"Could not get window geometry for browser focus: {e}")
+                    # Fallback: use Escape + Tab to get out of address bar
+                    try:
+                        subprocess.run(["xdotool", "key", "Escape"], check=True)
+                        time.sleep(0.1)
+                        subprocess.run(["xdotool", "key", "Tab"], check=True)
+                        time.sleep(0.2)
+                    except:
+                        time.sleep(0.3)
             
             # Detect if target window is a terminal
             paste_key = "ctrl+v"  # Default for most applications
