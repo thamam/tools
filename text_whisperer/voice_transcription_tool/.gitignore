@@ -4,9 +4,6 @@ __pycache__/
 *$py.class
 *.so
 .Python
-env/
-venv/
-.venv/
 build/
 develop-eggs/
 dist/
@@ -19,33 +16,19 @@ parts/
 sdist/
 var/
 wheels/
+share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
 
-# Testing
-htmlcov/
-.coverage
-.coverage.*
-.cache
-.pytest_cache/
-.tox/
-coverage.xml
-*.cover
-.hypothesis/
-
-# Logs
-*.log
-logs/
-debug_log_*.txt
-
-# Database
-*.db
-*.sqlite
-*.sqlite3
-
-# Configuration
-voice_transcription_config.json
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
 
 # IDE
 .vscode/
@@ -58,26 +41,18 @@ voice_transcription_config.json
 .DS_Store
 Thumbs.db
 
-# Package build files
+# Application specific
+*.log
+logs/
+htmlcov/
+.coverage
+.pytest_cache/
+voice_transcriptions.db
+voice_transcription_config.json
+.voice_transcription.pid
+/tmp/voice_transcription.lock
+
+# Build artifacts  
 *.deb
-voice-transcription-tool_*/
-
-# Temporary files
-*.tmp
-*.bak
-.cache/
-
-# Test output files
-test_*.py
-!tests/test_*.py
-
-# Launch scripts (keeping only essential ones)
-launch-*.sh
-run.sh
-install-desktop.sh
-test_package.sh
-
-# Documentation build
-docs/_build/
-docs/_static/
-docs/_templates/
+dist/
+build/
