@@ -199,7 +199,17 @@ class HotkeyManager:
     
     def is_hotkey_active(self) -> bool:
         """Check if hotkeys are active."""
-        return self.is_active and len(self.registered_hotkeys) > 0
+        return self.is_active
+    
+    def stop_all(self):
+        """Emergency stop all hotkey operations."""
+        try:
+            self.logger.warning("🚨 Emergency stopping all hotkey operations")
+            self._stop_listener()
+            self.registered_hotkeys.clear()
+            self.is_active = False
+        except Exception as e:
+            self.logger.error(f"Error in emergency stop: {e}")
     
     def get_registered_combinations(self) -> List[str]:
         """Get all registered hotkey combinations."""

@@ -11,6 +11,10 @@ This is now a clean, modular entry point that uses all our separated modules.
 import sys
 import logging
 import argparse
+import os
+import fcntl
+import signal
+import atexit
 from pathlib import Path
 
 # Add the project root to Python path
@@ -19,6 +23,54 @@ sys.path.insert(0, str(project_root))
 
 from utils.logger import setup_logging
 from gui.main_window import VoiceTranscriptionApp
+
+# Global references for cleanup
+lock_file = None
+app_instance = None
+
+
+def acquire_process_lock():
+    """Prevent multiple instances from running simultaneously."""
+    global lock_file
+    lock_path = "/tmp/voice_transcription.lock"
+    
+    try:
+        lock_file = open(lock_path, 'w')
+        fcntl.lockf(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        lock_file.write(str(os.getpid()))
+        lock_file.flush()
+        return True
+    except IOError:
+        if lock_file:
+            lock_file.close()
+        return False
+
+
+def emergency_cleanup():
+    """Emergency cleanup function."""
+    global app_instance, lock_file
+    
+    try:
+        if app_instance:
+            # Try to gracefully stop the app
+            if hasattr(app_instance, '_emergency_shutdown'):
+                app_instance._emergency_shutdown()
+    except:
+        pass
+    
+    try:
+        if lock_file:
+            lock_file.close()
+        os.unlink("/tmp/voice_transcription.lock")
+    except:
+        pass
+
+
+def signal_handler(signum, frame):
+    """Handle signals for graceful shutdown."""
+    print(f"\nReceived signal {signum}, shutting down...")
+    emergency_cleanup()
+    sys.exit(0)
 
 
 def parse_args():
@@ -46,6 +98,8 @@ def parse_args():
 
 def main():
     """Main entry point for the Voice Transcription Tool."""
+    global app_instance
+    
     try:
         # Parse command line arguments
         args = parse_args()
@@ -55,6 +109,19 @@ def main():
         setup_logging(level=log_level)
         logger = logging.getLogger(__name__)
         logger.info("=== Voice Transcription Tool Starting ===")
+        
+        # Acquire process lock to prevent multiple instances
+        if not acquire_process_lock():
+            print("ERROR: Another instance of Voice Transcription Tool is already running!")
+            print("If you're sure no other instance is running, delete: /tmp/voice_transcription.lock")
+            return 1
+            
+        logger.info(f"Process lock acquired (PID: {os.getpid()})")
+        
+        # Register cleanup handlers
+        atexit.register(emergency_cleanup)
+        signal.signal(signal.SIGTERM, signal_handler)
+        signal.signal(signal.SIGINT, signal_handler)
         
         if args.debug:
             logger.info("Debug mode enabled")
@@ -70,18 +137,16 @@ def main():
             for dep, message in missing_deps.items():
                 print(f"  • {dep}: {message}")
             print("\nPlease install missing dependencies:")
-            print("  pip install keyboard pyperclip")
-            print("  pip install openai-whisper  # OR")
-            print("  pip install SpeechRecognition")
+            print("  pip install -r requirements.txt")
             return 1
         
         # Start the application
         logger.info("Starting modular voice transcription application")
-        app = VoiceTranscriptionApp(
+        app_instance = VoiceTranscriptionApp(
             start_minimized=args.minimized,
             enable_tray=not args.no_tray
         )
-        app.run()
+        app_instance.run()
         
         return 0
         
@@ -104,14 +169,19 @@ def check_dependencies():
         missing['tkinter'] = 'GUI library (usually included with Python)'
     
     try:
-        import keyboard
+        import pynput
     except ImportError:
-        missing['keyboard'] = 'pip install keyboard'
+        missing['pynput'] = 'pip install pynput'
         
     try:
         import pyperclip
     except ImportError:
         missing['pyperclip'] = 'pip install pyperclip'
+    
+    try:
+        import pyaudio
+    except ImportError:
+        missing['pyaudio'] = 'pip install pyaudio'
     
     # Check for at least one speech engine
     has_speech_engine = False

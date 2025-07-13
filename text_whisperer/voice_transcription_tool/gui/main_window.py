@@ -1030,6 +1030,52 @@ class VoiceTranscriptionApp:
             self.system_tray.stop()
         
         self.root.destroy()
+    
+    def _emergency_shutdown(self):
+        """Emergency shutdown for system freeze prevention."""
+        try:
+            self.logger.warning("🚨 Emergency shutdown initiated")
+            
+            # Stop all background processes first
+            if hasattr(self, 'hotkey_manager'):
+                try:
+                    self.hotkey_manager.stop_all()
+                    self.logger.info("Hotkey manager stopped")
+                except:
+                    pass
+            
+            if hasattr(self, 'wake_word_detector'):
+                try:
+                    self.wake_word_detector.stop_listening()
+                    self.logger.info("Wake word detector stopped")
+                except:
+                    pass
+            
+            if hasattr(self, 'audio_recorder'):
+                try:
+                    self.audio_recorder.stop_recording()
+                    self.logger.info("Audio recorder stopped")
+                except:
+                    pass
+            
+            if hasattr(self, 'system_tray'):
+                try:
+                    self.system_tray.stop()
+                    self.logger.info("System tray stopped")
+                except:
+                    pass
+            
+            # Force close GUI
+            if hasattr(self, 'root'):
+                try:
+                    self.root.quit()
+                    self.root.destroy()
+                except:
+                    pass
+                    
+        except Exception as e:
+            # Last resort - don't let exceptions stop emergency shutdown
+            pass
 
     def _update_transcription_display(self, result):
         """
