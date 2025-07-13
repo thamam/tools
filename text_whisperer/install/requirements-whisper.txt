@@ -1,5 +1,0 @@
-# requirements-whisper.txt
-# Local speech recognition (high quality, offline)
-openai-whisper>=20231117
-torch>=1.9.0
-numpy>=1.21.0

@@ -1,0 +1,5 @@
+# Install dependencies using:
+# pip install -r voice_transcription_tool/requirements.txt
+
+# Or run this file directly:
+-r voice_transcription_tool/requirements.txt

@@ -178,7 +178,7 @@ class TestHotkeyManager:
         assert isinstance(combinations, list)
         assert len(combinations) > 0
     
-    @patch('utils.hotkeys.KEYBOARD_AVAILABLE', False)
+    @patch('utils.hotkeys.PYNPUT_AVAILABLE', False)
     def test_hotkey_unavailable(self):
         """Test hotkey manager when keyboard library is not available."""
         manager = HotkeyManager()

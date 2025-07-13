@@ -1,4 +1,0 @@
-# requirements-google.txt
-# Online speech recognition (fast, requires internet)
-SpeechRecognition>=3.10.0
-requests>=2.25.0

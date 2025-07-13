@@ -43,7 +43,7 @@ except ImportError:
     PYPERCLIP_AVAILABLE = False
 
 try:
-    import keyboard
+    import pynput
     KEYBOARD_AVAILABLE = True
 except ImportError:
     KEYBOARD_AVAILABLE = False
