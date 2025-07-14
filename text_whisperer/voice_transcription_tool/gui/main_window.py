@@ -2070,7 +2070,8 @@ class VoiceTranscriptionApp:
             # Start recording in background
             def record_training():
                 try:
-                    audio_file = self.audio_recorder.start_recording(max_duration=10)
+                    # Use shorter duration for training (5 seconds instead of 10)
+                    audio_file = self.audio_recorder.start_recording(max_duration=5)
                     if audio_file:
                         current_audio_file[0] = audio_file
                         training_window.after(0, stop_recording)
@@ -2102,10 +2103,10 @@ class VoiceTranscriptionApp:
                 def process_recording():
                     try:
                         # Update status with processing feedback
-                        training_window.after(0, lambda: status_var.set("Processing audio with speech recognition..."))
+                        training_window.after(0, lambda: status_var.set("Processing audio with Google Speech (fast)..."))
                         
-                        # Transcribe the audio using the correct method name
-                        result = self.speech_manager.transcribe(current_audio_file[0])
+                        # Transcribe the audio using the training-optimized method (faster)
+                        result = self.speech_manager.transcribe_for_training(current_audio_file[0])
                         
                         if result and result.get('text'):
                             # Update status
@@ -2116,7 +2117,8 @@ class VoiceTranscriptionApp:
                             
                             training_window.after(0, lambda: handle_training_response(response))
                         else:
-                            training_window.after(0, lambda: handle_error("Transcription failed - no text recognized"))
+                            error_msg = f"Transcription failed - {result.get('method', 'unknown error')}"
+                            training_window.after(0, lambda: handle_error(error_msg))
                             
                     except Exception as e:
                         training_window.after(0, lambda: handle_error(str(e)))

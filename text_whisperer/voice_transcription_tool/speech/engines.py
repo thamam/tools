@@ -52,7 +52,7 @@ class SpeechEngine(ABC):
 class WhisperEngine(SpeechEngine):
     """OpenAI Whisper speech recognition engine."""
     
-    def __init__(self, model_size: str = "base"):
+    def __init__(self, model_size: str = "tiny"):
         super().__init__()
         self.model_size = model_size
         self.model = None
@@ -77,7 +77,7 @@ class WhisperEngine(SpeechEngine):
     
     def transcribe(self, audio_file: str) -> Dict[str, Any]:
         """
-        Transcribe audio using Whisper.
+        Transcribe audio using Whisper with optimizations for short clips.
         
         MIGRATION: Copy logic from your transcribe_audio() method for Whisper.
         """
@@ -89,11 +89,32 @@ class WhisperEngine(SpeechEngine):
             }
         
         try:
-            self.logger.info("Transcribing with Whisper...")
-            result = self.model.transcribe(audio_file)
+            self.logger.info(f"Transcribing with Whisper {self.model_size} model...")
+            
+            # Optimize for short clips - use faster settings
+            result = self.model.transcribe(
+                audio_file,
+                fp16=False,  # Use FP32 for better CPU performance
+                condition_on_previous_text=False,  # Don't condition on previous text for short clips
+                temperature=0.0,  # Use deterministic decoding for consistency
+                best_of=1,  # Use single beam for speed
+                beam_size=1,  # Single beam search for speed
+                no_speech_threshold=0.6,  # Higher threshold to avoid false positives
+                logprob_threshold=-1.0,  # Standard threshold
+                compression_ratio_threshold=2.4,  # Standard threshold
+                word_timestamps=False  # Don't generate word timestamps for speed
+            )
+            
+            text = result.get('text', '').strip()
+            if not text:
+                return {
+                    'text': '[No speech detected]',
+                    'confidence': 0.0,
+                    'method': 'whisper_no_speech'
+                }
             
             return {
-                'text': result['text'].strip(),
+                'text': text,
                 'confidence': 0.95,  # Whisper doesn't provide confidence scores
                 'method': 'whisper',
                 'language': result.get('language', 'unknown')
@@ -276,6 +297,27 @@ class SpeechEngineManager:
         
         engine = self.engines[self.current_engine]
         return engine.transcribe(audio_file)
+    
+    def transcribe_for_training(self, audio_file: str) -> Dict[str, Any]:
+        """
+        Transcribe audio optimized for training - uses Google Speech for speed.
+        
+        For voice training, we prioritize speed over accuracy, so use Google Speech
+        which is much faster for short clips than Whisper.
+        """
+        # For training, prefer Google Speech (faster) over Whisper (slower)
+        if 'google' in self.engines and self.engines['google'].is_available():
+            self.logger.info("Using Google Speech for training transcription (faster)")
+            return self.engines['google'].transcribe(audio_file)
+        elif 'whisper' in self.engines and self.engines['whisper'].is_available():
+            self.logger.info("Using Whisper for training transcription (slower but still works)")
+            return self.engines['whisper'].transcribe(audio_file)
+        else:
+            return {
+                'text': '[No speech engine available for training]',
+                'confidence': 0.0,
+                'method': 'no_engine'
+            }
     
     def is_engine_available(self, engine_name: str) -> bool:
         """Check if a specific engine is available."""
