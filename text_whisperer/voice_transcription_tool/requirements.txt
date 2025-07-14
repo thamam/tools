@@ -1,3 +1,10 @@
+# System Dependencies (install via package manager)
+# FFmpeg is REQUIRED for audio processing with Whisper
+# Ubuntu/Debian: sudo apt install ffmpeg
+# CentOS/RHEL: sudo yum install ffmpeg
+# macOS: brew install ffmpeg
+# Windows: Download from https://ffmpeg.org/download.html
+
 # Core dependencies
 # keyboard>=0.13.5  # Replaced with pynput (see LINUX_HOTKEY_SOLUTION.md)
 pynput>=1.8.0  # Cross-platform hotkeys without sudo

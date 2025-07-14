@@ -215,6 +215,10 @@ class AudioRecorder:
                 if progress_callback:
                     elapsed = time.time() - start_time
                     progress_callback(elapsed)
+                
+                # Check stop signal more frequently for better responsiveness
+                if not self.is_recording:
+                    break
                     
             except Exception as e:
                 self.logger.warning(f"Audio read error: {e}")

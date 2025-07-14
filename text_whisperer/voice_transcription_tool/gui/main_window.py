@@ -2059,7 +2059,7 @@ class VoiceTranscriptionApp:
                 return
                 
             is_recording[0] = True
-            record_button.config(text="🛑 Stop Recording", state="normal")
+            record_button.config(text="🛑 Stop Recording", state="normal", command=stop_recording)
             skip_button.config(state="disabled")
             status_var.set("Recording... Speak now!")
             
@@ -2087,8 +2087,11 @@ class VoiceTranscriptionApp:
                 return
                 
             is_recording[0] = False
-            record_button.config(text="🎤 Start Recording", state="disabled")
+            record_button.config(text="🎤 Start Recording", state="disabled", command=start_recording)
             status_var.set("Processing...")
+            
+            # Actually stop the audio recording
+            self.audio_recorder.stop_recording()
             
             # Play stop sound
             if self.audio_feedback.enabled:
@@ -2098,21 +2101,30 @@ class VoiceTranscriptionApp:
             if current_audio_file[0]:
                 def process_recording():
                     try:
-                        # Transcribe the audio
-                        result = self.speech_manager.transcribe_audio(current_audio_file[0])
+                        # Update status with processing feedback
+                        training_window.after(0, lambda: status_var.set("Processing audio with speech recognition..."))
                         
-                        if result and result['success']:
+                        # Transcribe the audio using the correct method name
+                        result = self.speech_manager.transcribe(current_audio_file[0])
+                        
+                        if result and result.get('text'):
+                            # Update status
+                            training_window.after(0, lambda: status_var.set("Saving training sample..."))
+                            
                             # Record the sample
                             response = self.voice_trainer.record_sample(current_audio_file[0], result)
                             
                             training_window.after(0, lambda: handle_training_response(response))
                         else:
-                            training_window.after(0, lambda: handle_error("Transcription failed"))
+                            training_window.after(0, lambda: handle_error("Transcription failed - no text recognized"))
                             
                     except Exception as e:
                         training_window.after(0, lambda: handle_error(str(e)))
                 
                 threading.Thread(target=process_recording, daemon=True).start()
+            else:
+                # If no audio file, just wait a bit and try again
+                training_window.after(100, stop_recording)
         
         def handle_training_response(response):
             """Handle response from voice trainer."""
