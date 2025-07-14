@@ -118,9 +118,10 @@ class SystemTrayManager:
         try:
             menu_items = [
                 pystray.MenuItem(
-                    "🎤 Quick Record (or Left Click)", 
+                    "🎤 Quick Record (Left Click)", 
                     self._on_quick_record,
-                    enabled=True
+                    enabled=True,
+                    default=True
                 ),
                 pystray.MenuItem(
                     "📋 Show Transcriptions", 
@@ -134,7 +135,7 @@ class SystemTrayManager:
                     enabled=True
                 ),
                 pystray.MenuItem(
-                    "📊 Show Main Window (or Double Click)", 
+                    "📊 Show Main Window", 
                     self._on_show_window,
                     enabled=True
                 ),
@@ -174,9 +175,7 @@ class SystemTrayManager:
                 "VoiceTranscription",
                 icon_image,
                 "Voice Transcription Tool",
-                menu,
-                on_click=self._on_left_click,
-                on_double_click=self._on_double_click
+                menu
             )
             
             # Start tray icon in background thread
@@ -292,11 +291,15 @@ class SystemTrayManager:
     
     # Menu callbacks
     def _on_quick_record(self, icon, item):
-        """Handle quick record menu item."""
-        if self.on_record_callback:
-            self.on_record_callback()
-        elif self.app:
-            self.app._toggle_recording()
+        """Handle quick record menu item (also triggered by left click)."""
+        try:
+            self.logger.info("🖱️ Tray icon clicked - triggering recording")
+            if self.on_record_callback:
+                self.on_record_callback()
+            elif self.app:
+                self.app._toggle_recording()
+        except Exception as e:
+            self.logger.error(f"Error handling tray click: {e}")
     
     def _on_show_transcriptions(self, icon, item):
         """Handle show transcriptions menu item."""
@@ -323,31 +326,6 @@ class SystemTrayManager:
             self.on_quit_callback()
         elif self.app:
             self.app._on_closing()
-    
-    # Click handlers
-    def _on_left_click(self, icon):
-        """Handle left click on tray icon - trigger recording."""
-        try:
-            self.logger.info("🖱️ Left click on tray icon - triggering recording")
-            if self.on_record_callback:
-                self.on_record_callback()
-            elif self.app:
-                self.app._toggle_recording()
-        except Exception as e:
-            self.logger.error(f"Error handling left click: {e}")
-    
-    def _on_double_click(self, icon):
-        """Handle double click on tray icon - show main window."""
-        try:
-            self.logger.info("🖱️ Double click on tray icon - showing main window")
-            if self.on_show_callback:
-                self.on_show_callback()
-            elif self.app:
-                self.app.root.deiconify()
-                self.app.root.lift()
-                self.app.root.focus_force()
-        except Exception as e:
-            self.logger.error(f"Error handling double click: {e}")
     
     # Callback setters
     def set_show_callback(self, callback: Callable):
