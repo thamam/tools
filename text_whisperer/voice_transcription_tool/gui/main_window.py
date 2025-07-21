@@ -35,6 +35,7 @@ from utils.logger import DebugMessageHandler
 from utils.autopaste import AutoPasteManager
 from utils.system_tray import SystemTrayManager
 from utils.wake_word import WakeWordDetector, SimpleWakeWordDetector
+from utils.health_monitor import HealthMonitor
 
 try:
     import pyperclip
@@ -115,6 +116,15 @@ class VoiceTranscriptionApp:
         
         # Initialize wake word detector
         self._setup_wake_word_detector()
+
+        # Start health monitor
+        self.health_monitor = HealthMonitor(
+            memory_limit_mb=self.config.get('health_memory_limit', 1024),
+            cpu_limit_percent=self.config.get('health_cpu_limit', 95),
+            check_interval=self.config.get('health_check_interval', 30),
+            emergency_callback=self._emergency_shutdown
+        )
+        self.health_monitor.start()
         
         # Initial setup
         self._add_debug_message("🚀 Voice Transcription Tool initialized")
@@ -1028,7 +1038,10 @@ class VoiceTranscriptionApp:
         # Stop system tray
         if self.system_tray.is_available():
             self.system_tray.stop()
-        
+
+        if hasattr(self, 'health_monitor'):
+            self.health_monitor.stop()
+
         self.root.destroy()
     
     def _emergency_shutdown(self):
@@ -1062,6 +1075,12 @@ class VoiceTranscriptionApp:
                 try:
                     self.system_tray.stop()
                     self.logger.info("System tray stopped")
+                except:
+                    pass
+
+            if hasattr(self, 'health_monitor'):
+                try:
+                    self.health_monitor.stop()
                 except:
                     pass
             
