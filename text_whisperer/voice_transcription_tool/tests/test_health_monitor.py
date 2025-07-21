@@ -14,4 +14,4 @@ def test_health_monitor_start_stop(mock_process):
     time.sleep(0.2)
     monitor.stop()
 
-    assert not monitor._thread.is_alive() or monitor._stop_event.is_set()
+    assert not monitor._thread.is_alive()
