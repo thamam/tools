@@ -31,6 +31,10 @@ class ConfigManager:
             'window_width': 900,
             'window_height': 800,
             'record_seconds': 30,
+            # Health monitor defaults
+            'health_memory_limit': 1024,  # MB
+            'health_cpu_limit': 95,       # Percent
+            'health_check_interval': 30,  # Seconds
             'last_updated': datetime.now().isoformat()
         }
     
