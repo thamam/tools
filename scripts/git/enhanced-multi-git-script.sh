@@ -582,4 +582,46 @@ EOF
     echo
     
     # 11. Final instructions
-    echo_info "Final step
+    echo_info "Final steps:"
+    echo "1. Add the SSH keys above to your respective GitHub accounts"
+    echo "2. Run: source ~/.bashrc"
+    echo "3. Test with: use-personal or use-work"
+    echo "4. Clone repositories:"
+    echo "   Personal SSH: git clone git@github.com-personal:username/repo.git"
+    echo "   Work SSH: git clone git@github.com-work:organization/repo.git"
+    echo "   HTTPS: git clone https://github.com/username/repo.git (depends on active context)"
+    echo
+    echo_info "To convert existing repositories, run: $0 --convert"
+    echo_info "To scan all repositories, run: $0 --scan"
+    echo
+    echo_info "Setup script completed successfully!"
+}
+
+# Parse command line arguments
+case "${1:-setup}" in
+    --convert)
+        if [ "$2" = "--personal" ]; then
+            convert_repo "." "personal"
+        elif [ "$2" = "--work" ]; then
+            convert_repo "." "work"
+        else
+            convert_repo "."
+        fi
+        ;;
+    --scan)
+        scan_repos "${2:-.}"
+        ;;
+    --help|-h)
+        echo "Usage: $0 [OPTIONS]"
+        echo "Options:"
+        echo "  (no args)           Run full setup"
+        echo "  --convert           Convert current repository"
+        echo "  --convert --personal  Convert to personal account"
+        echo "  --convert --work    Convert to work account"
+        echo "  --scan [DIR]        Scan directory for git repos (default: current)"
+        echo "  --help              Show this help"
+        ;;
+    *)
+        run_setup
+        ;;
+esac
