@@ -31,6 +31,7 @@ pillow>=8.0.0   # For system tray icons
 
 # Cross-platform clipboard paste (optional but recommended)
 pyautogui>=0.9.50  # For cross-platform auto-paste fallback
+psutil>=5.9.0  # For resource monitoring
 
 # Optional dependencies for wake word detection
 # openwakeword>=0.6.0  # For wake word detection
