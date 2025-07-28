@@ -122,7 +122,7 @@ class VoiceTranscriptionApp:
             memory_limit_mb=self.config.get('health_memory_limit', 1024),
             cpu_limit_percent=self.config.get('health_cpu_limit', 95),
             check_interval=self.config.get('health_check_interval', 30),
-            emergency_callback=self._emergency_shutdown
+            emergency_callback=self._schedule_emergency_shutdown
         )
         self.health_monitor.start()
         
@@ -1043,7 +1043,15 @@ class VoiceTranscriptionApp:
             self.health_monitor.stop()
 
         self.root.destroy()
-    
+
+    def _schedule_emergency_shutdown(self):
+        """Schedule emergency shutdown to run on the Tk main thread."""
+        try:
+            self.root.after(0, self._emergency_shutdown)
+        except Exception:
+            # Fallback if Tk root is unavailable
+            self._emergency_shutdown()
+
     def _emergency_shutdown(self):
         """Emergency shutdown for system freeze prevention."""
         try:
