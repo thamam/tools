@@ -35,16 +35,23 @@ def setup_logging(level=logging.INFO):
 
 class DebugMessageHandler:
     """Handler for debug messages in the GUI."""
-    
-    def __init__(self):
-        self.messages = []
-        self.callbacks = []
+
+    MAX_MESSAGES = 100
+
+    def __init__(self, max_messages: int | None = None):
+        self.messages: list[str] = []
+        self.callbacks: list = []
+        if isinstance(max_messages, int) and max_messages > 0:
+            self.MAX_MESSAGES = max_messages
     
     def add_message(self, message):
         """Add a debug message."""
         timestamp = datetime.now().strftime("%H:%M:%S")
         debug_msg = f"[{timestamp}] {message}"
         self.messages.append(debug_msg)
+        if len(self.messages) > self.MAX_MESSAGES:
+            excess = len(self.messages) - self.MAX_MESSAGES
+            del self.messages[:excess]
         
         # Notify callbacks
         for callback in self.callbacks:

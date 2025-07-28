@@ -270,3 +270,15 @@ class TestDebugMessageHandler:
         handler.add_message("Test message")  # Use correct method name
         # Check that good callback was called despite the bad one
         assert good_callback.call_count == 1
+
+    def test_message_limit(self):
+        """Ensure messages list does not exceed limit."""
+        max_messages = 10
+        handler = DebugMessageHandler(max_messages=max_messages)
+
+        for i in range(max_messages + 5):
+            handler.add_message(f"msg {i}")
+
+        assert len(handler.get_messages()) == max_messages
+        # Oldest messages should be discarded
+        assert handler.get_messages()[0].endswith("msg 5")
