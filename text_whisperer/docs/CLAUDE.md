@@ -10,25 +10,32 @@ Voice Transcription Tool - A modular speech-to-text application with global hotk
 
 ### Running the Application
 ```bash
-# Run the main application
+# Run from project root
+python main.py  # Uses delegation to voice_transcription_tool/main.py
+
+# Or directly from the module
 python voice_transcription_tool/main.py
 
-# Or with debug mode
-python voice_transcription_tool/main.py --debug
+# With command line options
+python main.py --debug      # Enable verbose logging
+python main.py --minimized  # Start hidden in system tray
+python main.py --no-tray    # Disable system tray
 
-# Run as installed package (if installed with pip install -e .)
+# Run from anywhere (if installed with pip install -e .)
 voice-transcription
 ```
 
 ### Development Commands
 ```bash
-# Install dependencies
-pip install -r voice_transcription_tool/requirements.txt
+# Install dependencies (from project root)
+pip install -r requirements.txt  # This installs voice_transcription_tool/requirements.txt
 
-# Check if a specific module loads correctly
-python -c "from audio.recorder import AudioRecorder; print('Audio OK')"
+# Run tests
+cd voice_transcription_tool/
+python -m pytest tests/           # Run all tests
+python -m pytest tests/ -v       # Verbose output
+python -m pytest tests/test_audio.py  # Run specific test file
 
-# No test suite exists yet - tests would go in tests/ directory
 # No linting/formatting configuration exists yet
 ```
 
@@ -38,20 +45,26 @@ The codebase follows a modular architecture with clear separation of concerns:
 
 ### Core Modules
 
-- **main.py**: Entry point that checks dependencies and starts the GUI application
+- **main.py**: Root entry point that delegates to voice_transcription_tool/main.py
+- **voice_transcription_tool/main.py**: Application entry point with process locking and dependency checks
 - **config/**: Configuration and persistence
   - `settings.py`: ConfigManager for JSON config file management
   - `database.py`: DatabaseManager for SQLite voice training data
 - **audio/**: Audio capture and management
-  - `recorder.py`: AudioRecorder handles cross-platform recording
+  - `recorder.py`: AudioRecorder handles cross-platform recording with PyAudio
   - `devices.py`: AudioDeviceManager for input device selection
+  - `feedback.py`: AudioFeedback for recording start/stop sounds
 - **speech/**: Speech recognition
-  - `engines.py`: SpeechEngineManager with Whisper and Google Speech support
+  - `engines.py`: SpeechEngineManager with Whisper (local) and Google Speech (cloud) support
   - `training.py`: VoiceTrainer for improving recognition accuracy
 - **gui/**: User interface
-  - `main_window.py`: VoiceTranscriptionApp - main Tkinter window
+  - `main_window.py`: VoiceTranscriptionApp - main Tkinter window with tabbed interface
 - **utils/**: Utilities
-  - `hotkeys.py`: HotkeyManager for global keyboard shortcuts
+  - `hotkeys.py`: HotkeyManager using pynput for cross-platform global shortcuts
+  - `autopaste.py`: AutoPasteManager for automatic text insertion
+  - `system_tray.py`: SystemTrayManager with pystray for tray functionality
+  - `wake_word.py`: Wake word detection (optional feature)
+  - `health_monitor.py`: Resource usage monitoring
   - `logger.py`: Logging setup and debug message handling
 
 ### Key Design Patterns
@@ -60,6 +73,7 @@ The codebase follows a modular architecture with clear separation of concerns:
 2. **Abstract Base Classes**: Speech engines inherit from SpeechEngine ABC for consistent interface
 3. **Queue-based Threading**: Audio processing and transcription use queues for thread communication
 4. **Callback Pattern**: Debug messages use callbacks to update GUI from other modules
+5. **Singleton Lock**: Process lock in main.py prevents multiple instances
 
 ### Critical Integration Points
 
@@ -67,18 +81,34 @@ The codebase follows a modular architecture with clear separation of concerns:
 - Audio data flows: AudioRecorder → Queue → SpeechEngineManager → GUI display
 - Configuration is loaded by ConfigManager and used throughout the application
 - Voice training data is stored in SQLite via DatabaseManager
+- Global hotkeys are managed by pynput without requiring sudo on Linux
 
 ### Global State
 
 - Configuration file: `voice_transcription_config.json`
 - Database file: `voice_transcriptions.db`
 - Log files: `logs/voice_transcription_*.log`
-- Default hotkey: F9 (configurable)
+- Default hotkeys:
+  - Alt+D: Start/stop recording
+  - Alt+S: Open settings
+  - Alt+W: Toggle wake word
+- Process lock: `/tmp/voice_transcription.lock`
 
 ### Dependencies
 
-The application supports two speech engines:
+**System Requirements**:
+- FFmpeg: Required for Whisper audio processing
+- xdotool (Linux): Required for auto-paste functionality
+
+**Speech Engines** (at least one required):
 - **Whisper**: Local processing, more accurate, requires more resources
 - **Google Speech**: Cloud-based, faster, requires internet
 
-At least one must be installed for the app to function.
+**Key Python Dependencies**:
+- pynput: Cross-platform hotkeys without sudo
+- pyaudio: Audio recording
+- pygame: Audio feedback sounds
+- pystray + pillow: System tray functionality
+- torch: Required for Whisper
+- pyperclip: Clipboard operations
+- tkinter: GUI (usually pre-installed with Python)

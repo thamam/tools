@@ -50,7 +50,8 @@ if [ ! -d "$CURSOR_CONFIG" ]; then
 fi
 
 # Check if Cursor is currently running
-if pgrep -f "cursor.*--no-sandbox" > /dev/null || pgrep -f "cursor" > /dev/null; then
+# if pgrep -f "cursor.*--no-sandbox" > /dev/null || pgrep -f "cursor" > /dev/null; then
+if pgrep -f "cursor.*--no-sandbox" > /dev/null; then
     print_error "Cursor is currently running. Please close it before running this cleanup."
     echo "Use: pkill -f cursor"
     exit 1
