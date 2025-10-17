@@ -298,11 +298,16 @@ class AudioRecorder:
         self.logger.info("Recording stop requested")
     
     def _record_pyaudio(self, temp_file: str, max_duration: float,
-                       progress_callback: Optional[Callable[[float], None]]) -> None:
+                       progress_callback: Optional[Callable[[float, float], None]]) -> None:
         """
         Record using PyAudio.
 
         MIGRATION: Copy logic from your record_with_pyaudio() method here.
+
+        Args:
+            temp_file: Path to save audio file
+            max_duration: Maximum recording duration in seconds
+            progress_callback: Callback(elapsed_time, audio_level) called during recording
         """
         stream = self.audio_instance.open(
             format=self.format,
@@ -329,15 +334,17 @@ class AudioRecorder:
                         # Read full chunk if available
                         data = stream.read(self.chunk_size, exception_on_overflow=False)
                         frames.append(data)
+
+                        # Progress callback with audio level
+                        if progress_callback:
+                            elapsed = time.time() - start_time
+                            # Calculate audio level (RMS) for real-time feedback
+                            audio_level = self._calculate_rms(data)
+                            progress_callback(elapsed, audio_level)
                     else:
                         # Small sleep to avoid busy waiting
                         time.sleep(0.01)
                         continue
-
-                    # Progress callback
-                    if progress_callback:
-                        elapsed = time.time() - start_time
-                        progress_callback(elapsed)
 
                 except OSError as e:
                     # Stream closed or device error - exit cleanly
@@ -356,10 +363,10 @@ class AudioRecorder:
             except Exception as e:
                 self.logger.warning(f"Error closing stream: {e}")
             self.current_stream = None
-        
+
         if not frames:
             raise Exception("No audio frames captured")
-        
+
         # Save to file
         with wave.open(temp_file, 'wb') as wf:
             wf.setnchannels(self.channels)

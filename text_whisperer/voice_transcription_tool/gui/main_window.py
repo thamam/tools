@@ -296,35 +296,63 @@ class VoiceTranscriptionApp:
             # Ensure UI is reset
             self.root.after(0, self._reset_recording_ui)
     
-    def _recording_progress_callback(self, elapsed_time):
-        """Handle recording progress updates."""
-        self.root.after(0, lambda: self._update_progress_bar(elapsed_time))
-    
-    def _update_progress_bar(self, elapsed_time):
-        """Update the progress bar."""
+    def _recording_progress_callback(self, elapsed_time, audio_level=0.0):
+        """
+        Handle recording progress updates with audio level feedback.
+
+        Args:
+            elapsed_time: Time elapsed since recording started
+            audio_level: RMS audio level for visual feedback
+        """
+        self.root.after(0, lambda: self._update_progress_bar(elapsed_time, audio_level))
+
+    def _update_progress_bar(self, elapsed_time, audio_level=0.0):
+        """
+        Update the progress bar with audio level color-coding.
+
+        Audio level thresholds:
+        - < 500: Low/silent (yellow warning)
+        - 500-5000: Good level (green)
+        - > 5000: Loud/clipping (red warning)
+        """
         if self.is_recording:
             self.recording_progress['value'] = elapsed_time
 
             max_duration = self.config.get('record_seconds', 30)
             remaining = max(0, max_duration - elapsed_time)
 
+            # Determine audio level status
+            if audio_level < 500:
+                level_status = "🟡 Low volume"
+                level_color = "orange"
+            elif audio_level > 5000:
+                level_status = "🔴 Too loud"
+                level_color = "red"
+            else:
+                level_status = "🟢 Good"
+                level_color = "green"
+
+            # Format time display
+            elapsed_str = f"{int(elapsed_time)}s"
+            max_str = f"{int(max_duration)}s"
+
             if remaining <= 3:
                 self.status_label.configure(
-                    text=f"Recording... {remaining:.1f}s left (finishing soon)",
+                    text=f"Recording: {elapsed_str}/{max_str} ({level_status}) - Finishing soon!",
                     foreground="orange"
                 )
             else:
                 self.status_label.configure(
-                    text=f"Recording... {remaining:.1f}s left",
-                    foreground="red"
+                    text=f"Recording: {elapsed_str}/{max_str} ({level_status})",
+                    foreground=level_color
                 )
     
     def _update_recording_progress(self):
-        """Update recording progress bar."""
+        """Update recording progress bar (fallback when no audio level available)."""
         if self.is_recording and self.recording_start_time:
             elapsed = time.time() - self.recording_start_time
-            self._update_progress_bar(elapsed)
-            
+            self._update_progress_bar(elapsed, audio_level=1000)  # Default "good" level
+
             # Schedule next update
             self.root.after(100, self._update_recording_progress)
     
