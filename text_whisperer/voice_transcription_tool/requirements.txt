@@ -25,9 +25,11 @@ requests>=2.25.0
 # Audio feedback (currently used)
 pygame>=2.0.0  # For audio playback and feedback sounds
 
-# Cross-platform clipboard paste (optional but recommended)
-pyautogui>=0.9.50  # For cross-platform auto-paste fallback
+# Resource monitoring (optional but recommended)
 psutil>=5.9.0  # For resource monitoring
+
+# Note: pyautogui removed due to Qt threading conflicts
+# Use xdotool on Linux instead: sudo apt install xdotool
 
 # Optional dependencies for wake word detection
 # openwakeword>=0.6.0  # For wake word detection

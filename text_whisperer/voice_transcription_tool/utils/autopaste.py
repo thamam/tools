@@ -16,12 +16,8 @@ try:
 except ImportError:
     PYPERCLIP_AVAILABLE = False
 
-# Try to import platform-specific modules
-try:
-    import pyautogui
-    PYAUTOGUI_AVAILABLE = True
-except ImportError:
-    PYAUTOGUI_AVAILABLE = False
+# pyautogui removed due to Qt threading conflicts with OpenCV
+# Use xdotool on Linux instead (no sudo required, no Qt conflicts)
 
 
 class AutoPasteManager:
@@ -38,27 +34,21 @@ class AutoPasteManager:
         if sys.platform == "linux":
             # Check if xdotool is available
             try:
-                subprocess.run(["which", "xdotool"], 
+                subprocess.run(["which", "xdotool"],
                              capture_output=True, check=True)
                 self.logger.info("Auto-paste using xdotool (Linux)")
                 return "xdotool"
             except:
-                pass
-            
-            # Check if pyautogui is available
-            if PYAUTOGUI_AVAILABLE:
-                self.logger.info("Auto-paste using pyautogui")
-                return "pyautogui"
-        
+                self.logger.warning("xdotool not found - install with: sudo apt install xdotool")
+
         elif sys.platform == "darwin":  # macOS
             self.logger.info("Auto-paste using osascript (macOS)")
             return "osascript"
-        
+
         elif sys.platform == "win32":  # Windows
-            if PYAUTOGUI_AVAILABLE:
-                self.logger.info("Auto-paste using pyautogui (Windows)")
-                return "pyautogui"
-        
+            self.logger.warning("Auto-paste not implemented for Windows yet")
+            return "none"
+
         self.logger.warning("No auto-paste method available")
         return "none"
     
@@ -170,8 +160,6 @@ class AutoPasteManager:
             # Try to paste based on detected method
             if self.method == "xdotool":
                 return self._paste_with_xdotool()
-            elif self.method == "pyautogui":
-                return self._paste_with_pyautogui()
             elif self.method == "osascript":
                 return self._paste_with_osascript()
             else:
@@ -247,26 +235,6 @@ class AutoPasteManager:
             self.logger.error(f"xdotool paste failed: {e}")
             return False
     
-    def _paste_with_pyautogui(self) -> bool:
-        """Use pyautogui to paste (cross-platform)."""
-        try:
-            # Disable pyautogui failsafe for this operation
-            original_failsafe = pyautogui.FAILSAFE
-            pyautogui.FAILSAFE = False
-            
-            # Use platform-specific paste
-            if sys.platform == "darwin":
-                pyautogui.hotkey('command', 'v')
-            else:
-                pyautogui.hotkey('ctrl', 'v')
-            
-            pyautogui.FAILSAFE = original_failsafe
-            self.logger.info("Auto-pasted with pyautogui")
-            return True
-        except Exception as e:
-            self.logger.error(f"pyautogui paste failed: {e}")
-            return False
-    
     def _paste_with_osascript(self) -> bool:
         """Use osascript to paste (macOS)."""
         try:
@@ -290,17 +258,15 @@ class AutoPasteManager:
     def install_instructions(self) -> str:
         """Get installation instructions for auto-paste dependencies."""
         if sys.platform == "linux":
-            return """To enable auto-paste on Linux, install one of:
-1. xdotool: sudo apt-get install xdotool
-2. pyautogui: pip install pyautogui
+            return """To enable auto-paste on Linux:
+sudo apt-get install xdotool
 
-Note: Auto-paste works best with xdotool on Linux."""
-        
+Note: xdotool provides reliable auto-paste without Qt threading conflicts."""
+
         elif sys.platform == "win32":
-            return """To enable auto-paste on Windows:
-pip install pyautogui"""
-        
+            return "Auto-paste not yet implemented for Windows."
+
         elif sys.platform == "darwin":
             return "Auto-paste should work on macOS without additional dependencies."
-        
+
         return "Auto-paste not supported on this platform."

@@ -31,7 +31,7 @@ class TestAutoPasteManager:
         # Should detect xdotool on Linux
         import sys
         if sys.platform == "linux":
-            assert manager.method in ['xdotool', 'pyautogui', 'none']
+            assert manager.method in ['xdotool', 'none']
     
     def test_terminal_detection(self):
         """Test terminal window detection."""
