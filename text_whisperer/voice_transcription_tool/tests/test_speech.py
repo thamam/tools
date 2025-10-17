@@ -5,7 +5,6 @@ Tests for the speech recognition module components.
 import pytest
 from unittest.mock import Mock, patch, MagicMock
 from speech.engines import SpeechEngineManager, WhisperEngine, GoogleSpeechEngine
-from speech.training import VoiceTrainer
 
 
 class TestSpeechEngineManager:
@@ -170,71 +169,3 @@ class TestGoogleSpeechEngine:
         assert result['text'] == "Test transcription"
         assert result['method'] == "google"
         assert 'confidence' in result
-
-
-class TestVoiceTrainer:
-    """Test the VoiceTrainer class."""
-    
-    def test_voice_trainer_initialization(self, temp_dir):
-        """Test voice trainer initialization."""
-        from config.database import DatabaseManager
-        
-        db_file = temp_dir / "test_training.db"
-        db_manager = DatabaseManager(str(db_file))
-        
-        trainer = VoiceTrainer(db_manager)
-        
-        assert trainer is not None
-        assert trainer.db_manager == db_manager
-    
-    def test_get_existing_profiles(self, temp_dir):
-        """Test getting existing voice profiles."""
-        from config.database import DatabaseManager
-        
-        db_file = temp_dir / "test_training.db"
-        db_manager = DatabaseManager(str(db_file))
-        trainer = VoiceTrainer(db_manager)
-        
-        # Initially should have no profiles
-        profiles = trainer.get_existing_profiles()
-        assert isinstance(profiles, list)
-        assert len(profiles) == 0
-    
-    def test_clear_training_data(self, temp_dir):
-        """Test clearing training data."""
-        from config.database import DatabaseManager
-        
-        db_file = temp_dir / "test_training.db"
-        db_manager = DatabaseManager(str(db_file))
-        trainer = VoiceTrainer(db_manager)
-        
-        # Should not crash even with no data
-        success = trainer.clear_training_data()
-        assert isinstance(success, bool)
-    
-    def test_save_training_sample(self, temp_dir):
-        """Test saving a training sample."""
-        from config.database import DatabaseManager
-        
-        db_file = temp_dir / "test_training.db"
-        db_manager = DatabaseManager(str(db_file))
-        trainer = VoiceTrainer(db_manager)
-        
-        # Test saving a sample
-        sample_data = {
-            'text': 'Test training phrase',
-            'audio_path': '/path/to/audio.wav',
-            'confidence': 0.95
-        }
-        
-        # Method may not exist yet, but test shouldn't crash
-        try:
-            success = trainer.save_training_sample(
-                sample_data['text'],
-                sample_data['audio_path'],
-                sample_data['confidence']
-            )
-            assert isinstance(success, bool)
-        except AttributeError:
-            # Method not implemented yet, that's OK
-            pass
