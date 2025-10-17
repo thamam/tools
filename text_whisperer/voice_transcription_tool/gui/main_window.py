@@ -254,21 +254,44 @@ class VoiceTranscriptionApp:
     def _record_audio_thread(self, max_duration):
         """Record audio in background thread."""
         try:
-            audio_file = self.audio_recorder.start_recording(
+            result = self.audio_recorder.start_recording(
                 max_duration,
                 progress_callback=self._recording_progress_callback
             )
 
-            if audio_file:
+            if result.get('success'):
                 self.logger.info("Recording completed")
-                self.audio_queue.put(audio_file)
+                self.audio_queue.put(result['audio_file'])
             else:
-                self.logger.error("Recording failed")
-                self.root.after(0, lambda: messagebox.showerror("Error", "Recording failed"))
+                # Handle recording errors with clear user feedback
+                error_msg = result.get('error', 'Recording failed')
+                error_type = result.get('error_type', 'unknown')
+
+                self.logger.error(f"Recording failed ({error_type}): {error_msg}")
+
+                # Show appropriate error message based on type
+                if error_type == 'silent_audio':
+                    self.root.after(0, lambda: messagebox.showwarning(
+                        "No Speech Detected",
+                        error_msg
+                    ))
+                elif error_type == 'device_error':
+                    self.root.after(0, lambda: messagebox.showerror(
+                        "Microphone Error",
+                        error_msg
+                    ))
+                else:
+                    self.root.after(0, lambda: messagebox.showerror(
+                        "Recording Error",
+                        error_msg
+                    ))
 
         except Exception as e:
             self.logger.error(f"Recording thread error: {e}")
-            self.root.after(0, lambda: messagebox.showerror("Error", f"Recording error: {e}"))
+            self.root.after(0, lambda: messagebox.showerror(
+                "Recording Error",
+                f"Unexpected error during recording:\n{str(e)}"
+            ))
         finally:
             # Ensure UI is reset
             self.root.after(0, self._reset_recording_ui)
