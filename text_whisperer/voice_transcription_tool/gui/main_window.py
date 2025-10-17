@@ -34,7 +34,6 @@ from utils.hotkeys import HotkeyManager
 from utils.logger import DebugMessageHandler
 from utils.autopaste import AutoPasteManager
 from utils.system_tray import SystemTrayManager
-from utils.wake_word import WakeWordDetector, SimpleWakeWordDetector
 from utils.health_monitor import HealthMonitor
 
 try:
@@ -113,9 +112,6 @@ class VoiceTranscriptionApp:
         
         # Initialize system tray
         self._setup_system_tray()
-        
-        # Initialize wake word detector
-        self._setup_wake_word_detector()
 
         # Start health monitor
         self.health_monitor = HealthMonitor(
@@ -137,10 +133,6 @@ class VoiceTranscriptionApp:
             self._add_debug_message("🖥️ System tray enabled")
         else:
             self._add_debug_message("⚠️ System tray not available")
-            
-        # Auto-start wake word detection if enabled
-        if self.config.get('wake_word_enabled', False) and self.wake_word_detector:
-            self.root.after(1000, self._toggle_wake_word)  # Start after 1 second
     
     def _create_gui(self):
         """Create the modern GUI with tabbed interface."""
@@ -323,24 +315,7 @@ class VoiceTranscriptionApp:
         
         content_frame = ttk.Frame(advanced_tab)
         content_frame.pack(fill="both", expand=True, padx=10, pady=10)
-        
-        # Wake word section
-        wake_frame = ttk.LabelFrame(content_frame, text="Wake Word Detection", padding="10")
-        wake_frame.pack(fill="x", pady=(0, 10))
-        
-        wake_controls = ttk.Frame(wake_frame)
-        wake_controls.pack(fill="x")
-        
-        self.wake_word_button = ttk.Button(wake_controls, text="🎯 Wake Word: OFF",
-                                          command=self._toggle_wake_word)
-        self.wake_word_button.pack(side="left", padx=(0, 10))
-        
-        ttk.Button(wake_controls, text="🎓 Train Wake Word",
-                  command=self._train_wake_word).pack(side="left", padx=(0, 10))
-        
-        ttk.Button(wake_controls, text="🧪 Test Live",
-                  command=self._test_wake_word_live).pack(side="left")
-        
+
         # Voice training section
         training_frame = ttk.LabelFrame(content_frame, text="Voice Training", padding="10")
         training_frame.pack(fill="x", pady=(0, 10))
@@ -516,13 +491,9 @@ class VoiceTranscriptionApp:
                                        command=self._toggle_hotkey_mode)
         self.hotkey_button.grid(row=0, column=1, padx=(0, 10))
         
-        self.settings_button = ttk.Button(control_frame, text="⚙️ Settings", 
+        self.settings_button = ttk.Button(control_frame, text="⚙️ Settings",
                                          command=self._open_settings)
-        self.settings_button.grid(row=0, column=2, padx=(0, 10))
-        
-        self.wake_word_button = ttk.Button(control_frame, text="🎯 Wake Word: OFF", 
-                                          command=self._toggle_wake_word)
-        self.wake_word_button.grid(row=0, column=3)
+        self.settings_button.grid(row=0, column=2)
     
     def _create_transcription_panel(self, parent):
         """Create transcription display panel."""
@@ -603,7 +574,6 @@ class VoiceTranscriptionApp:
         hotkey_map = {
             self.config.get('hotkey_combination', 'alt+d'): self._hotkey_callback,  # Record/Stop
             'alt+s': self._hotkey_settings,  # Open Settings
-            'alt+w': self._hotkey_wake_word,  # Toggle Wake Word
         }
         
         # Register all hotkeys
@@ -628,13 +598,7 @@ class VoiceTranscriptionApp:
         if hasattr(self, 'root'):
             self.root.after(0, self._open_settings)
             self._add_debug_message("⚙️ Settings opened via hotkey")
-    
-    def _hotkey_wake_word(self):
-        """Hotkey callback for toggling wake word detection."""
-        if hasattr(self, 'root'):
-            self.root.after(0, self._toggle_wake_word)
-            self._add_debug_message("🎯 Wake word toggled via hotkey")
-    
+
     def _hotkey_callback(self):
         """Handle hotkey press."""
         if self.hotkey_manager.is_hotkey_active():
@@ -741,15 +705,7 @@ class VoiceTranscriptionApp:
         # Capture active window for auto-paste (before changing focus)
         if self.config.get('auto_paste_mode', False):
             self.autopaste_manager.capture_active_window()
-        
-        # Stop wake word detection temporarily to free audio device
-        self.wake_word_was_active_before_recording = False
-        if hasattr(self, 'wake_word_detector') and self.wake_word_detector:
-            if self.wake_word_detector.is_listening:
-                self.wake_word_was_active_before_recording = True
-                self.wake_word_detector.stop_listening()
-                self._add_debug_message("⏸️ Paused wake word detection for recording")
-        
+
         self.is_recording = True
         self.recording_start_time = time.time()
         self.record_button.configure(text="🛑 Stop Recording")
@@ -789,101 +745,7 @@ class VoiceTranscriptionApp:
         
         # Stop the recorder
         self.audio_recorder.stop_recording()
-    
-    def _restart_wake_word_if_needed(self):
-        """Restart wake word detection if it was active before recording."""
-        if hasattr(self, 'wake_word_was_active_before_recording') and self.wake_word_was_active_before_recording:
-            if hasattr(self, 'wake_word_detector') and self.wake_word_detector:
-                # Small delay to ensure audio device is fully released
-                self.root.after(500, self._restart_wake_word_detection)
-    
-    def _restart_wake_word_detection(self):
-        """Actually restart the wake word detection."""
-        if self.wake_word_detector.start_listening():
-            self._add_debug_message("▶️ Resumed wake word detection")
-            wake_words = self.config.get('wake_words', ["hey computer"])
-            self._add_debug_message(f"🎯 Listening for wake words: {', '.join(wake_words)}")
-        else:
-            self._add_debug_message("⚠️ Failed to resume wake word detection")
-        
-        # Reset the flag
-        self.wake_word_was_active_before_recording = False
-    
-    def _setup_wake_word_detector(self):
-        """Initialize wake word detector."""
-        try:
-            # Try to use full wake word detector
-            self.wake_word_detector = WakeWordDetector(
-                callback=self._on_wake_word_detected,
-                wake_words=self.config.get('wake_words', ["hey computer"]),
-                threshold=self.config.get('wake_word_threshold', 0.5)
-            )
-            
-            if self.wake_word_detector.is_available():
-                self._add_debug_message("🎯 Wake word detection available")
-            else:
-                # Fall back to simple detector
-                self.wake_word_detector = SimpleWakeWordDetector(
-                    callback=self._on_wake_word_detected,
-                    wake_phrase=self.config.get('wake_words', ["hey computer"])[0],
-                    threshold=self.config.get('wake_word_threshold', 0.5)
-                )
-                self._add_debug_message("🎯 Using simple wake word detection")
-                
-        except Exception as e:
-            self.logger.error(f"Failed to initialize wake word detector: {e}")
-            self.wake_word_detector = None
-            self._add_debug_message("❌ Wake word detection not available")
-    
-    def _toggle_wake_word(self):
-        """Toggle wake word detection on/off."""
-        if not self.wake_word_detector:
-            self._add_debug_message("❌ Wake word detector not available")
-            return
-            
-        if self.wake_word_detector.is_listening:
-            # Stop listening
-            self.wake_word_detector.stop_listening()
-            self.wake_word_button.config(text="🎯 Wake Word: OFF")
-            self.config.set('wake_word_enabled', False)
-            self._add_debug_message("🛑 Wake word detection stopped")
-        else:
-            # Start listening
-            if self.wake_word_detector.start_listening():
-                self.wake_word_button.config(text="🎯 Wake Word: ON")
-                self.config.set('wake_word_enabled', True)
-                wake_words = self.config.get('wake_words', ["hey computer"])
-                self._add_debug_message(f"🎯 Listening for wake words: {', '.join(wake_words)}")
-            else:
-                self._add_debug_message("❌ Failed to start wake word detection")
-    
-    def _on_wake_word_detected(self, wake_word: str, score: float):
-        """Handle wake word detection."""
-        # Check if already recording or processing
-        if self.is_recording:
-            self._add_debug_message(f"⏭️ Wake word ignored - already recording")
-            return
-            
-        # Add visual notification
-        self._add_debug_message(f"🎯 Wake word detected: '{wake_word}' (score: {score:.2f})")
-        
-        # Play audio feedback if enabled
-        if hasattr(self, 'audio_feedback') and self.audio_feedback.enabled:
-            self.audio_feedback.play_start()
-        
-        # Update UI to show detection
-        self.root.after(0, self._flash_wake_word_indicator)
-        
-        # Start recording if not already recording
-        if not self.is_recording:
-            self.root.after(0, self._toggle_recording)
-    
-    def _flash_wake_word_indicator(self):
-        """Flash visual indicator for wake word detection."""
-        original_color = self.wake_word_button.cget('background')
-        self.wake_word_button.config(background='green')
-        self.root.after(500, lambda: self.wake_word_button.config(background=original_color))
-    
+
     def _record_audio_thread(self, max_duration):
         """Record audio in background thread."""
         try:
@@ -897,14 +759,10 @@ class VoiceTranscriptionApp:
                 self.audio_queue.put(audio_file)
             else:
                 self._add_debug_message("❌ Recording failed")
-                # Restart wake word detection if recording failed
-                self._restart_wake_word_if_needed()
-                
+
         except Exception as e:
             self.logger.error(f"Recording thread error: {e}")
             self._add_debug_message(f"❌ Recording error: {e}")
-            # Restart wake word detection if recording error
-            self._restart_wake_word_if_needed()
         finally:
             # Ensure UI is reset
             self.root.after(0, self._reset_recording_ui)
@@ -1030,11 +888,7 @@ class VoiceTranscriptionApp:
         # Cleanup
         self.hotkey_manager.unregister_hotkey()
         self.audio_recorder.cleanup()
-        
-        # Stop wake word detection
-        if self.wake_word_detector and self.wake_word_detector.is_listening:
-            self.wake_word_detector.stop_listening()
-        
+
         # Stop system tray
         if self.system_tray.is_available():
             self.system_tray.stop()
@@ -1056,14 +910,7 @@ class VoiceTranscriptionApp:
                     self.logger.info("Hotkey manager stopped")
                 except:
                     pass
-            
-            if hasattr(self, 'wake_word_detector'):
-                try:
-                    self.wake_word_detector.stop_listening()
-                    self.logger.info("Wake word detector stopped")
-                except:
-                    pass
-            
+
             if hasattr(self, 'audio_recorder'):
                 try:
                     self.audio_recorder.stop_recording()
@@ -1159,11 +1006,7 @@ class VoiceTranscriptionApp:
                         "Voice Transcription Complete",
                         f"'{result['text'][:50]}{'...' if len(result['text']) > 50 else ''}'"
                     )
-                
-                # If auto-paste is not enabled, restart wake word detection now
-                if not self.config.get('auto_paste_mode', False):
-                    self._restart_wake_word_if_needed()
-                    
+
             except Exception as e:
                 self.logger.error(f"Auto clipboard copy failed: {e}")
     
@@ -1175,9 +1018,6 @@ class VoiceTranscriptionApp:
         else:
             self._add_debug_message("⚠️ Auto-paste failed - use Ctrl+V to paste")
             self.status_label.configure(text="Ready to paste (Ctrl+V)", foreground="orange")
-        
-        # Restart wake word detection if it was active before recording
-        self._restart_wake_word_if_needed()
     
     def _copy_to_clipboard(self):
         """
@@ -1622,62 +1462,7 @@ class VoiceTranscriptionApp:
                 messagebox.showerror("Invalid Input", "Please enter valid numbers")
         
         ttk.Button(size_frame, text="Apply Size", command=apply_window_size).pack(side="left", padx=10)
-        
-        # Wake Word Settings
-        wake_word_frame = ttk.LabelFrame(parent, text="Wake Word Detection", padding="10")
-        wake_word_frame.pack(fill="x", pady=(0, 10))
-        
-        # Wake word enabled checkbox
-        wake_word_enabled_var = tk.BooleanVar(value=self.config.get('wake_word_enabled', False))
-        ttk.Checkbutton(wake_word_frame, text="Enable wake word detection on startup", 
-                       variable=wake_word_enabled_var).pack(anchor="w")
-        
-        # Wake word phrase
-        ttk.Label(wake_word_frame, text="Wake word/phrase:").pack(anchor="w", pady=(10, 0))
-        wake_words = self.config.get('wake_words', ["hey computer"])
-        wake_word_var = tk.StringVar(value=wake_words[0] if wake_words else "hey computer")
-        wake_word_entry = ttk.Entry(wake_word_frame, textvariable=wake_word_var, width=30)
-        wake_word_entry.pack(anchor="w", padx=(20, 0))
-        
-        # Detection threshold
-        ttk.Label(wake_word_frame, text="Detection sensitivity:").pack(anchor="w", pady=(10, 0))
-        threshold_var = tk.DoubleVar(value=self.config.get('wake_word_threshold', 0.5))
-        threshold_scale = ttk.Scale(wake_word_frame, from_=0.1, to=1.0, 
-                                   variable=threshold_var, orient="horizontal", length=200)
-        threshold_scale.pack(anchor="w", padx=(20, 0))
-        
-        threshold_label = ttk.Label(wake_word_frame, text=f"Threshold: {threshold_var.get():.2f}")
-        threshold_label.pack(anchor="w", padx=(20, 0))
-        
-        def update_threshold_label(*args):
-            threshold_label.config(text=f"Threshold: {threshold_var.get():.2f}")
-        threshold_var.trace('w', update_threshold_label)
-        
-        # Wake word training section
-        training_section = ttk.LabelFrame(wake_word_frame, text="Training & Testing", padding="5")
-        training_section.pack(fill="x", pady=(10, 0))
-        
-        # Training buttons
-        training_buttons = ttk.Frame(training_section)
-        training_buttons.pack(fill="x")
-        
-        ttk.Button(training_buttons, text="🎤 Train Wake Word", 
-                  command=self._train_wake_word).pack(side="left", padx=(0, 10))
-        ttk.Button(training_buttons, text="🧪 Test Live Detection", 
-                  command=self._test_wake_word_live).pack(side="left", padx=(0, 10))
-        
-        # Training instructions
-        ttk.Label(training_section, 
-                 text="• Train: Record your wake word 3-5 times to improve accuracy", 
-                 font=("Arial", 8), foreground="gray").pack(anchor="w", pady=(5, 0))
-        ttk.Label(training_section, 
-                 text="• Test: Listen for wake word detection in real-time", 
-                 font=("Arial", 8), foreground="gray").pack(anchor="w")
-        
-        # Info about wake word detection
-        ttk.Label(wake_word_frame, text="Note: Wake word detection requires openWakeWord library", 
-                 font=("Arial", 9, "italic"), foreground="gray").pack(anchor="w", pady=(10, 0))
-        
+
         # Save button
         def save_settings():
             self._add_debug_message("💾 Saving settings...")
@@ -1731,27 +1516,7 @@ class VoiceTranscriptionApp:
                 'window_width': int(width_var.get()),
                 'window_height': int(height_var.get())
             })
-            
-            # Save wake word settings
-            self.config.update({
-                'wake_word_enabled': wake_word_enabled_var.get(),
-                'wake_words': [wake_word_var.get()],
-                'wake_word_threshold': threshold_var.get()
-            })
-            
-            # Update wake word detector if needed
-            if self.wake_word_detector:
-                self.wake_word_detector.set_wake_words([wake_word_var.get()])
-                self.wake_word_detector.set_threshold(threshold_var.get())
-                
-                # Enable/disable based on setting
-                if wake_word_enabled_var.get() and not self.wake_word_detector.is_listening:
-                    self.wake_word_detector.start_listening()
-                    self.wake_word_button.config(text="🎯 Wake Word: ON")
-                elif not wake_word_enabled_var.get() and self.wake_word_detector.is_listening:
-                    self.wake_word_detector.stop_listening()
-                    self.wake_word_button.config(text="🎯 Wake Word: OFF")
-            
+
             # Save all settings
             self.config.save()
             self._add_debug_message("✅ All settings saved")
@@ -1762,241 +1527,6 @@ class VoiceTranscriptionApp:
                    command=save_settings).pack(side="right", padx=(10, 0))
         ttk.Button(button_frame, text="Cancel",
                    command=settings_window.destroy).pack(side="right")
-    
-    def _train_wake_word(self):
-        """Start wake word training process."""
-        if not self.wake_word_detector:
-            self._add_debug_message("❌ Wake word detector not available")
-            return
-            
-        # Create training dialog
-        training_window = tk.Toplevel(self.root)
-        training_window.title("Wake Word Training")
-        training_window.geometry("500x400")
-        training_window.transient(self.root)
-        training_window.grab_set()
-        
-        main_frame = ttk.Frame(training_window, padding="20")
-        main_frame.pack(fill="both", expand=True)
-        
-        # Instructions
-        ttk.Label(main_frame, text="Wake Word Training", 
-                 font=("Arial", 14, "bold")).pack(pady=(0, 10))
-        
-        current_word = self.config.get('wake_words', ['hey computer'])[0]
-        ttk.Label(main_frame, text=f"Training for: '{current_word}'", 
-                 font=("Arial", 12)).pack(pady=(0, 10))
-        
-        instructions = ttk.Label(main_frame, 
-                               text="You will record your wake word 5 times.\n"
-                                    "This helps improve detection accuracy for your voice.\n\n"
-                                    "• Speak clearly at normal volume\n"
-                                    "• Use the same tone you'll use normally\n"
-                                    "• Record in your typical environment",
-                               justify="left")
-        instructions.pack(pady=(0, 20))
-        
-        # Progress
-        progress_var = tk.StringVar(value="Ready to start training")
-        progress_label = ttk.Label(main_frame, textvariable=progress_var, 
-                                  font=("Arial", 10, "bold"))
-        progress_label.pack(pady=(0, 10))
-        
-        # Progress bar
-        progress_bar = ttk.Progressbar(main_frame, mode='determinate', length=300)
-        progress_bar.pack(pady=(0, 20))
-        progress_bar['maximum'] = 5
-        
-        # Buttons
-        button_frame = ttk.Frame(main_frame)
-        button_frame.pack()
-        
-        training_samples = []
-        current_sample = [0]  # Use list for mutable reference
-        
-        def start_training():
-            """Start the training process."""
-            start_button.config(state="disabled")
-            cancel_button.config(text="Stop Training")
-            current_sample[0] = 0
-            training_samples.clear()
-            record_next_sample()
-        
-        def record_next_sample():
-            """Record the next training sample."""
-            if current_sample[0] >= 5:
-                finish_training()
-                return
-                
-            sample_num = current_sample[0] + 1
-            progress_var.set(f"Recording sample {sample_num}/5...")
-            progress_bar['value'] = current_sample[0]
-            
-            # Update instructions
-            instructions.config(text=f"Say '{current_word}' clearly now!\n\n"
-                                     f"Recording sample {sample_num} of 5...")
-            
-            # Start recording after 1 second delay
-            training_window.after(1000, do_recording)
-        
-        def do_recording():
-            """Perform the actual recording."""
-            try:
-                # Record for 3 seconds
-                sample = self.wake_word_detector.collect_training_sample(3.0)
-                if sample:
-                    training_samples.append(sample)
-                    current_sample[0] += 1
-                    
-                    progress_var.set(f"Sample {current_sample[0]}/5 recorded successfully!")
-                    progress_bar['value'] = current_sample[0]
-                    
-                    if current_sample[0] < 5:
-                        # Record next sample after 2 seconds
-                        training_window.after(2000, record_next_sample)
-                    else:
-                        finish_training()
-                else:
-                    progress_var.set("Failed to record sample. Try again.")
-                    training_window.after(2000, record_next_sample)
-                    
-            except Exception as e:
-                progress_var.set(f"Error: {e}")
-                self._add_debug_message(f"❌ Training error: {e}")
-        
-        def finish_training():
-            """Complete the training process."""
-            if len(training_samples) >= 3:
-                progress_var.set("✅ Training completed successfully!")
-                instructions.config(text=f"Training completed with {len(training_samples)} samples.\n"
-                                          "Your wake word detection should now be more accurate!")
-                
-                # Save training completion to config
-                self.config.set('wake_word_trained', True)
-                self.config.set('wake_word_training_count', len(training_samples))
-                self.config.save()
-                
-                self._add_debug_message(f"🎓 Wake word training completed with {len(training_samples)} samples")
-            else:
-                progress_var.set("⚠️ Training incomplete")
-                instructions.config(text="Training needs at least 3 samples to be effective.\n"
-                                          "Please try training again.")
-            
-            start_button.config(text="Train Again", state="normal")
-            cancel_button.config(text="Close")
-        
-        start_button = ttk.Button(button_frame, text="Start Training", 
-                                 command=start_training)
-        start_button.pack(side="left", padx=(0, 10))
-        
-        cancel_button = ttk.Button(button_frame, text="Cancel", 
-                                  command=training_window.destroy)
-        cancel_button.pack(side="left")
-    
-    def _test_wake_word_live(self):
-        """Start live wake word testing."""
-        if not self.wake_word_detector:
-            self._add_debug_message("❌ Wake word detector not available")
-            return
-            
-        # Create test dialog
-        test_window = tk.Toplevel(self.root)
-        test_window.title("Live Wake Word Test")
-        test_window.geometry("450x300")
-        test_window.transient(self.root)
-        test_window.grab_set()
-        
-        main_frame = ttk.Frame(test_window, padding="20")
-        main_frame.pack(fill="both", expand=True)
-        
-        # Instructions
-        ttk.Label(main_frame, text="Live Wake Word Detection Test", 
-                 font=("Arial", 14, "bold")).pack(pady=(0, 10))
-        
-        current_word = self.config.get('wake_words', ['hey computer'])[0]
-        ttk.Label(main_frame, text=f"Say: '{current_word}'", 
-                 font=("Arial", 12)).pack(pady=(0, 10))
-        
-        # Status display
-        status_var = tk.StringVar(value="Click 'Start Test' to begin listening...")
-        status_label = ttk.Label(main_frame, textvariable=status_var, 
-                                font=("Arial", 11), foreground="blue")
-        status_label.pack(pady=(0, 10))
-        
-        # Detection log
-        log_frame = ttk.LabelFrame(main_frame, text="Detection Log", padding="10")
-        log_frame.pack(fill="both", expand=True, pady=(0, 20))
-        
-        log_text = tk.Text(log_frame, height=8, width=50)
-        log_scrollbar = ttk.Scrollbar(log_frame, orient="vertical", command=log_text.yview)
-        log_text.configure(yscrollcommand=log_scrollbar.set)
-        
-        log_text.pack(side="left", fill="both", expand=True)
-        log_scrollbar.pack(side="right", fill="y")
-        
-        # Test state
-        is_testing = [False]
-        
-        def log_detection(message):
-            """Add message to detection log."""
-            timestamp = time.strftime("%H:%M:%S")
-            log_text.insert(tk.END, f"[{timestamp}] {message}\n")
-            log_text.see(tk.END)
-        
-        def test_callback(wake_word, score):
-            """Callback for wake word detection during test."""
-            log_detection(f"🎯 DETECTED: '{wake_word}' (confidence: {score:.2f})")
-            status_label.config(foreground="green")
-            status_var.set(f"✅ Wake word detected! Confidence: {score:.2f}")
-            
-            # Flash status back to listening after 2 seconds
-            test_window.after(2000, lambda: (
-                status_label.config(foreground="blue"),
-                status_var.set("🎧 Listening for wake word...")
-            ))
-        
-        def start_test():
-            """Start the live test."""
-            if not is_testing[0]:
-                # Start testing
-                success = self.wake_word_detector.start_live_test(test_callback)
-                if success:
-                    is_testing[0] = True
-                    status_var.set("🎧 Listening for wake word...")
-                    status_label.config(foreground="blue")
-                    start_button.config(text="Stop Test")
-                    log_detection("Started live wake word detection test")
-                else:
-                    status_var.set("❌ Failed to start test")
-                    log_detection("Failed to start wake word detection")
-            else:
-                # Stop testing
-                self.wake_word_detector.stop_live_test()
-                is_testing[0] = False
-                status_var.set("Test stopped")
-                status_label.config(foreground="gray")
-                start_button.config(text="Start Test")
-                log_detection("Stopped live wake word detection test")
-        
-        def on_close():
-            """Handle window closing."""
-            if is_testing[0]:
-                self.wake_word_detector.stop_live_test()
-            test_window.destroy()
-        
-        # Buttons
-        button_frame = ttk.Frame(main_frame)
-        button_frame.pack()
-        
-        start_button = ttk.Button(button_frame, text="Start Test", 
-                                 command=start_test)
-        start_button.pack(side="left", padx=(0, 10))
-        
-        ttk.Button(button_frame, text="Close", 
-                  command=on_close).pack(side="left")
-        
-        # Handle window close event
-        test_window.protocol("WM_DELETE_WINDOW", on_close)
 
     def _start_voice_training(self):
         """Start voice training process."""
