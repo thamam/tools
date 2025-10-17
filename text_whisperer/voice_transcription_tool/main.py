@@ -79,19 +79,14 @@ def parse_args():
         description="Voice Transcription Tool - Speech-to-text with global hotkeys"
     )
     parser.add_argument(
-        "--minimized", 
+        "--minimized",
         action="store_true",
-        help="Start minimized to system tray"
+        help="Start minimized (hidden window)"
     )
     parser.add_argument(
-        "--debug", 
+        "--debug",
         action="store_true",
         help="Enable debug logging"
-    )
-    parser.add_argument(
-        "--no-tray", 
-        action="store_true",
-        help="Disable system tray"
     )
     return parser.parse_args()
 
@@ -126,9 +121,7 @@ def main():
         if args.debug:
             logger.info("Debug mode enabled")
         if args.minimized:
-            logger.info("Starting minimized to system tray")
-        if args.no_tray:
-            logger.info("System tray disabled")
+            logger.info("Starting minimized")
         
         # Check dependencies
         missing_deps = check_dependencies()
@@ -143,8 +136,7 @@ def main():
         # Start the application
         logger.info("Starting modular voice transcription application")
         app_instance = VoiceTranscriptionApp(
-            start_minimized=args.minimized,
-            enable_tray=not args.no_tray
+            start_minimized=args.minimized
         )
         app_instance.run()
         
