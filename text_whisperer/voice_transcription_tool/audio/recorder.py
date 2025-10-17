@@ -188,15 +188,6 @@ class AudioRecorder:
         """Stop the current recording."""
         self.is_recording = False
         self.logger.info("Recording stop requested")
-
-        # Force close the stream to unblock stream.read()
-        if self.current_stream:
-            try:
-                self.current_stream.stop_stream()
-                self.current_stream.close()
-                self.logger.info("Stream forcibly closed")
-            except Exception as e:
-                self.logger.warning(f"Error closing stream: {e}")
     
     def _record_pyaudio(self, temp_file: str, max_duration: float,
                        progress_callback: Optional[Callable[[float], None]]) -> None:
@@ -222,6 +213,8 @@ class AudioRecorder:
         try:
             while self.is_recording and (time.time() - start_time) < max_duration:
                 try:
+                    # Use shorter read timeout to check stop flag more frequently
+                    # Read smaller chunks to be more responsive to stop signal
                     data = stream.read(self.chunk_size, exception_on_overflow=False)
                     frames.append(data)
 
@@ -230,10 +223,10 @@ class AudioRecorder:
                         elapsed = time.time() - start_time
                         progress_callback(elapsed)
 
-                    # Check stop signal more frequently for better responsiveness
-                    if not self.is_recording:
-                        break
-
+                except OSError as e:
+                    # Stream closed or device error - exit cleanly
+                    self.logger.info(f"Stream closed: {e}")
+                    break
                 except Exception as e:
                     self.logger.warning(f"Audio read error: {e}")
                     break
@@ -243,8 +236,9 @@ class AudioRecorder:
                 if stream.is_active():
                     stream.stop_stream()
                 stream.close()
-            except:
-                pass
+                self.logger.info("Stream closed successfully")
+            except Exception as e:
+                self.logger.warning(f"Error closing stream: {e}")
             self.current_stream = None
         
         if not frames:
