@@ -631,13 +631,39 @@ class VoiceTranscriptionApp:
                 self.logger.error(f"Auto clipboard copy failed: {e}")
     
     def _perform_auto_paste(self, text: str):
-        """Perform auto-paste operation."""
-        if self.autopaste_manager.auto_paste(text):
-            self.logger.info("Auto-pasted successfully!")
-            self.status_label.configure(text="Auto-pasted!", foreground="green")
+        """Perform auto-paste operation with clear feedback."""
+        result = self.autopaste_manager.auto_paste(text)
+
+        if result.get('success'):
+            # Paste succeeded
+            method = result.get('method', 'unknown')
+            window = result.get('window', '')
+
+            if window:
+                self.logger.info(f"Auto-pasted successfully to: {window}")
+                # Show brief confirmation
+                self.status_label.configure(text=f"✓ Pasted to {window[:30]}...", foreground="green")
+            else:
+                self.logger.info(f"Auto-pasted successfully using {method}")
+                self.status_label.configure(text=f"✓ Text pasted", foreground="green")
+
+            # Reset status after 2 seconds
+            self.root.after(2000, lambda: self.status_label.configure(text="Ready", foreground="green"))
         else:
-            self.logger.warning("Auto-paste failed - use Ctrl+V to paste")
-            self.status_label.configure(text="Ready to paste (Ctrl+V)", foreground="orange")
+            # Paste failed
+            error_msg = result.get('error', 'Auto-paste failed')
+            method = result.get('method', 'unknown')
+
+            self.logger.warning(f"Auto-paste failed ({method}): {error_msg}")
+
+            # Show error with manual paste instruction
+            self.status_label.configure(
+                text="⚠ Auto-paste failed - Press Ctrl+V to paste",
+                foreground="orange"
+            )
+
+            # Reset status after 4 seconds (longer for error)
+            self.root.after(4000, lambda: self.status_label.configure(text="Ready", foreground="green"))
     
     def _copy_to_clipboard(self):
         """Copy current transcription to clipboard."""

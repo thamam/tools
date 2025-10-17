@@ -135,40 +135,78 @@ class AutoPasteManager:
         window_name_lower = window_name.lower()
         return any(indicator.lower() in window_name_lower for indicator in browser_indicators)
 
-    def auto_paste(self, text: str, delay: float = 0.1) -> bool:
+    def auto_paste(self, text: str, delay: float = 0.1) -> dict:
         """
         Attempt to auto-paste text at cursor position.
-        
+
         Args:
             text: Text to paste
             delay: Delay before pasting (seconds)
-            
+
         Returns:
-            True if successful, False otherwise
+            Dict with keys:
+                - success: bool - Whether paste succeeded
+                - method: str - Method used or 'none'
+                - error: str - Error message if failed (optional)
         """
         if not PYPERCLIP_AVAILABLE:
             self.logger.error("pyperclip not available for auto-paste")
-            return False
-        
+            return {
+                'success': False,
+                'method': 'none',
+                'error': 'Clipboard library not available'
+            }
+
         try:
             # First, copy to clipboard
             pyperclip.copy(text)
-            
+
             # Small delay to ensure clipboard is updated
             time.sleep(delay)
-            
+
             # Try to paste based on detected method
             if self.method == "xdotool":
-                return self._paste_with_xdotool()
+                success = self._paste_with_xdotool()
+                if success:
+                    return {
+                        'success': True,
+                        'method': 'xdotool',
+                        'window': self.active_window_name
+                    }
+                else:
+                    return {
+                        'success': False,
+                        'method': 'xdotool',
+                        'error': 'Failed to paste with xdotool - text is in clipboard'
+                    }
             elif self.method == "osascript":
-                return self._paste_with_osascript()
+                success = self._paste_with_osascript()
+                if success:
+                    return {
+                        'success': True,
+                        'method': 'osascript'
+                    }
+                else:
+                    return {
+                        'success': False,
+                        'method': 'osascript',
+                        'error': 'Failed to paste - text is in clipboard'
+                    }
             else:
                 self.logger.warning("No auto-paste method available - text copied to clipboard only")
-                return False
-                
+                return {
+                    'success': False,
+                    'method': 'none',
+                    'error': 'Auto-paste not available - install xdotool (Linux) or use manual paste'
+                }
+
         except Exception as e:
             self.logger.error(f"Auto-paste failed: {e}")
-            return False
+            return {
+                'success': False,
+                'method': self.method,
+                'error': f'Auto-paste error: {str(e)}'
+            }
     
     def _paste_with_xdotool(self) -> bool:
         """Use xdotool to paste (Linux)."""
