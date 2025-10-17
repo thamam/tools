@@ -461,14 +461,15 @@ class VoiceTranscriptionApp:
                 self.logger.info("Automatically copied to clipboard")
 
                 # Auto-paste if enabled
-                if self.config.get('auto_paste_mode', False):
-                    if self.autopaste_manager.is_available():
-                        # Use configurable delay
-                        delay_ms = int(self.config.get('auto_paste_delay', 1.0) * 1000)
-                        self.logger.info(f"Auto-pasting in {self.config.get('auto_paste_delay', 1.0):.1f} seconds...")
-                        self.root.after(delay_ms, lambda: self._perform_auto_paste(result['text']))
-                    else:
-                        self.logger.warning("Auto-paste not available - text copied to clipboard")
+                # TODO: Fix threading issue with pyautogui before re-enabling
+                # if self.config.get('auto_paste_mode', False):
+                #     if self.autopaste_manager.is_available():
+                #         # Use configurable delay
+                #         delay_ms = int(self.config.get('auto_paste_delay', 1.0) * 1000)
+                #         self.logger.info(f"Auto-pasting in {self.config.get('auto_paste_delay', 1.0):.1f} seconds...")
+                #         self.root.after(delay_ms, lambda: self._perform_auto_paste(result['text']))
+                #     else:
+                #         self.logger.warning("Auto-paste not available - text copied to clipboard")
 
                 # Show temporary notification
                 self.status_label.configure(text="Copied to clipboard!", foreground="blue")
