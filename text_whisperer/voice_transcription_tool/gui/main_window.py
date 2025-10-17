@@ -661,6 +661,14 @@ class VoiceTranscriptionApp:
             ttk.Label(engine_frame, text="⚠️ No speech engines available",
                         foreground="orange").pack(anchor="w")
 
+        # Show engine status
+        ttk.Label(engine_frame, text="\nEngine Status:", font=("Arial", 9, "bold")).pack(anchor="w", pady=(10, 5))
+        engine_info = self.speech_manager.get_engine_info()
+        for name, info in engine_info.items():
+            status_icon = "✅" if info['available'] else "❌"
+            status_text = f"{status_icon} {name.capitalize()}: {'Available' if info['available'] else 'Not available'}"
+            ttk.Label(engine_frame, text=status_text, font=("Arial", 9)).pack(anchor="w")
+
         # Hotkey configuration
         hotkey_frame = ttk.LabelFrame(main_frame, text="Hotkey", padding="10")
         hotkey_frame.pack(fill="x", pady=(0, 15))
