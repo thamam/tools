@@ -78,19 +78,21 @@ class WhisperEngine(SpeechEngine):
     def transcribe(self, audio_file: str) -> Dict[str, Any]:
         """
         Transcribe audio using Whisper with optimizations for short clips.
-        
+
         MIGRATION: Copy logic from your transcribe_audio() method for Whisper.
         """
         if not self.model:
             return {
-                'text': '[Whisper model not loaded]',
+                'text': '',
                 'confidence': 0.0,
-                'method': 'whisper_error'
+                'method': 'whisper',
+                'error': 'Whisper model not loaded',
+                'success': False
             }
-        
+
         try:
             self.logger.info(f"Transcribing with Whisper {self.model_size} model...")
-            
+
             # Optimize for short clips - use faster settings
             result = self.model.transcribe(
                 audio_file,
@@ -104,28 +106,35 @@ class WhisperEngine(SpeechEngine):
                 compression_ratio_threshold=2.4,  # Standard threshold
                 word_timestamps=False  # Don't generate word timestamps for speed
             )
-            
+
             text = result.get('text', '').strip()
             if not text:
                 return {
-                    'text': '[No speech detected]',
+                    'text': '',
                     'confidence': 0.0,
-                    'method': 'whisper_no_speech'
+                    'method': 'whisper',
+                    'error': 'No speech detected in audio. The recording may be too noisy or unclear.',
+                    'success': False
                 }
-            
+
             return {
                 'text': text,
                 'confidence': 0.95,  # Whisper doesn't provide confidence scores
                 'method': 'whisper',
-                'language': result.get('language', 'unknown')
+                'language': result.get('language', 'unknown'),
+                'success': True
             }
-            
+
         except Exception as e:
             self.logger.error(f"Whisper transcription failed: {e}")
+            error_msg = 'Transcription failed. The audio may be too noisy, unclear, or in an unsupported format.'
             return {
-                'text': f'[Whisper error: {str(e)}]',
+                'text': '',
                 'confidence': 0.0,
-                'method': 'whisper_error'
+                'method': 'whisper',
+                'error': error_msg,
+                'error_detail': str(e),
+                'success': False
             }
     
     def is_available(self) -> bool:
@@ -165,48 +174,62 @@ class GoogleSpeechEngine(SpeechEngine):
     def transcribe(self, audio_file: str) -> Dict[str, Any]:
         """
         Transcribe audio using Google Speech Recognition.
-        
+
         MIGRATION: Copy logic from your transcribe_audio() method for Google Speech.
         """
         if not self.recognizer:
             return {
-                'text': '[Google Speech Recognition not initialized]',
+                'text': '',
                 'confidence': 0.0,
-                'method': 'google_error'
+                'method': 'google',
+                'error': 'Google Speech Recognition not initialized',
+                'success': False
             }
-        
+
         try:
             self.logger.info("Transcribing with Google Speech Recognition...")
-            
+
             with sr.AudioFile(audio_file) as source:
                 audio_data = self.recognizer.record(source)
                 text = self.recognizer.recognize_google(audio_data)
-            
+
             return {
                 'text': text,
                 'confidence': 0.9,  # Google API doesn't provide confidence in free tier
-                'method': 'google'
+                'method': 'google',
+                'success': True
             }
-            
+
         except sr.UnknownValueError:
             return {
-                'text': '[Could not understand audio]',
+                'text': '',
                 'confidence': 0.0,
-                'method': 'google_no_speech'
+                'method': 'google',
+                'error': 'Could not understand audio. Please speak more clearly.',
+                'success': False
             }
         except sr.RequestError as e:
             self.logger.error(f"Google Speech Recognition request failed: {e}")
+            # Check for network-related errors
+            error_msg = 'Google Speech API request failed.'
+            if 'connection' in str(e).lower() or 'network' in str(e).lower():
+                error_msg = 'Cannot reach Google Speech API. Please check your internet connection.'
             return {
-                'text': f'[Google API error: {str(e)}]',
+                'text': '',
                 'confidence': 0.0,
-                'method': 'google_error'
+                'method': 'google',
+                'error': error_msg,
+                'error_detail': str(e),
+                'success': False
             }
         except Exception as e:
             self.logger.error(f"Google Speech Recognition failed: {e}")
             return {
-                'text': f'[Recognition error: {str(e)}]',
+                'text': '',
                 'confidence': 0.0,
-                'method': 'google_error'
+                'method': 'google',
+                'error': f'Recognition error: {str(e)}',
+                'success': False
             }
     
     def is_available(self) -> bool:
@@ -282,21 +305,68 @@ class SpeechEngineManager:
         """Get the current engine name."""
         return self.current_engine
     
-    def transcribe(self, audio_file: str) -> Dict[str, Any]:
+    def transcribe(self, audio_file: str, enable_fallback: bool = True) -> Dict[str, Any]:
         """
-        Transcribe audio using the current engine.
-        
+        Transcribe audio using the current engine with automatic fallback.
+
         MIGRATION: This replaces your transcribe_audio() method.
+
+        Args:
+            audio_file: Path to audio file
+            enable_fallback: If True, try alternative engine on failure
+
+        Returns:
+            Dict with transcription result or error
         """
         if not self.current_engine or self.current_engine not in self.engines:
             return {
-                'text': '[No speech engine available]',
+                'text': '',
                 'confidence': 0.0,
-                'method': 'no_engine'
+                'method': 'no_engine',
+                'error': 'No speech engine available',
+                'success': False
             }
-        
+
+        # Try primary engine
         engine = self.engines[self.current_engine]
-        return engine.transcribe(audio_file)
+        result = engine.transcribe(audio_file)
+
+        # If primary engine failed and fallback is enabled, try alternative engine
+        if not result.get('success', False) and enable_fallback:
+            alternative_engine = self._get_alternative_engine()
+
+            if alternative_engine:
+                self.logger.info(f"Primary engine ({self.current_engine}) failed, trying {alternative_engine}...")
+                result['fallback_attempted'] = True
+                result['primary_engine'] = self.current_engine
+
+                # Try alternative engine
+                alt_engine = self.engines[alternative_engine]
+                alt_result = alt_engine.transcribe(audio_file)
+
+                # If alternative succeeded, use its result
+                if alt_result.get('success', False):
+                    self.logger.info(f"Fallback to {alternative_engine} succeeded")
+                    alt_result['fallback_from'] = self.current_engine
+                    alt_result['fallback_success'] = True
+                    return alt_result
+                else:
+                    # Both engines failed
+                    self.logger.error(f"Both engines failed: {self.current_engine} and {alternative_engine}")
+                    result['fallback_failed'] = True
+                    result['fallback_engine'] = alternative_engine
+                    result['fallback_error'] = alt_result.get('error', 'Unknown error')
+
+        return result
+
+    def _get_alternative_engine(self) -> Optional[str]:
+        """Get an alternative engine for fallback."""
+        # Prefer Whisper over Google for fallback (more accurate)
+        if self.current_engine == 'google' and 'whisper' in self.engines:
+            return 'whisper'
+        elif self.current_engine == 'whisper' and 'google' in self.engines:
+            return 'google'
+        return None
     
     def transcribe_for_training(self, audio_file: str) -> Dict[str, Any]:
         """

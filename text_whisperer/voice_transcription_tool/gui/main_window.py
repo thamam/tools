@@ -516,19 +516,58 @@ class VoiceTranscriptionApp:
         """Update the transcription display."""
         # Update status
         self.status_label.configure(text="Ready", foreground="green")
-        self.logger.info(f"Transcription completed: '{result['text'][:30]}...'")
 
-        # Check for errors
-        if result.get('error'):
-            messagebox.showerror("Transcription Error", result['error'])
+        # Check if transcription succeeded
+        if not result.get('success', False):
+            error_msg = result.get('error', 'Transcription failed')
+
+            # Check if both engines failed
+            if result.get('fallback_failed'):
+                primary = result.get('primary_engine', 'unknown')
+                fallback = result.get('fallback_engine', 'unknown')
+                fallback_error = result.get('fallback_error', 'Unknown error')
+
+                detailed_error = f"Both speech engines failed:\n\n"
+                detailed_error += f"Primary ({primary}): {error_msg}\n"
+                detailed_error += f"Fallback ({fallback}): {fallback_error}\n\n"
+                detailed_error += "Please check:\n"
+                detailed_error += "• Audio quality (speak clearly, reduce background noise)\n"
+                detailed_error += "• Microphone volume is adequate\n"
+                detailed_error += "• Internet connection (for Google Speech)"
+
+                messagebox.showerror("Transcription Failed", detailed_error)
+            else:
+                messagebox.showerror("Transcription Error", error_msg)
+
+            self.logger.error(f"Transcription failed: {error_msg}")
             return
+
+        # Transcription succeeded
+        text = result.get('text', '').strip()
+
+        if not text:
+            self.logger.warning("Transcription returned empty text")
+            messagebox.showwarning("Empty Result", "Transcription completed but no text was detected.")
+            return
+
+        # Log success with fallback info if applicable
+        if result.get('fallback_success'):
+            fallback_from = result.get('fallback_from', 'unknown')
+            method = result.get('method', 'unknown')
+            self.logger.info(f"Transcription completed with fallback: {fallback_from} → {method}")
+            self.status_label.configure(text=f"Ready (used {method} fallback)", foreground="orange")
+            # Show brief notification
+            self.root.after(3000, lambda: self.status_label.configure(text="Ready", foreground="green"))
+        else:
+            method = result.get('method', 'unknown')
+            self.logger.info(f"Transcription completed with {method}: '{text[:30]}...'")
 
         # Add to transcription text
         current_text = self.transcription_text.get("1.0", tk.END).strip()
         if current_text:
-            new_text = current_text + "\n\n" + result['text']
+            new_text = current_text + "\n\n" + text
         else:
-            new_text = result['text']
+            new_text = text
 
         self.transcription_text.delete("1.0", tk.END)
         self.transcription_text.insert("1.0", new_text)
@@ -542,7 +581,7 @@ class VoiceTranscriptionApp:
         # Automatic clipboard copy if enabled
         if self.config.get('auto_copy_to_clipboard', True) and PYPERCLIP_AVAILABLE:
             try:
-                pyperclip.copy(result['text'])
+                pyperclip.copy(text)
                 self.logger.info("Automatically copied to clipboard")
 
                 # Auto-paste if enabled (fixed: now uses xdotool directly, no Qt threading issues)
@@ -551,13 +590,14 @@ class VoiceTranscriptionApp:
                         # Use configurable delay
                         delay_ms = int(self.config.get('auto_paste_delay', 1.0) * 1000)
                         self.logger.info(f"Auto-pasting in {self.config.get('auto_paste_delay', 1.0):.1f} seconds...")
-                        self.root.after(delay_ms, lambda: self._perform_auto_paste(result['text']))
+                        self.root.after(delay_ms, lambda: self._perform_auto_paste(text))
                     else:
                         self.logger.warning("Auto-paste not available - text copied to clipboard")
 
-                # Show temporary notification
-                self.status_label.configure(text="Copied to clipboard!", foreground="blue")
-                self.root.after(2000, lambda: self.status_label.configure(text="Ready", foreground="green"))
+                # Show temporary notification (unless already showing fallback message)
+                if not result.get('fallback_success'):
+                    self.status_label.configure(text="Copied to clipboard!", foreground="blue")
+                    self.root.after(2000, lambda: self.status_label.configure(text="Ready", foreground="green"))
 
             except Exception as e:
                 self.logger.error(f"Auto clipboard copy failed: {e}")
