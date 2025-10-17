@@ -43,7 +43,8 @@ class AudioRecorder:
         self.audio_method = None
         self.audio_instance = None
         self.format = None
-        
+        self.current_stream = None  # Store current recording stream for cleanup
+
         self._init_audio_method()
     
     def _init_audio_method(self) -> None:
@@ -187,12 +188,21 @@ class AudioRecorder:
         """Stop the current recording."""
         self.is_recording = False
         self.logger.info("Recording stop requested")
+
+        # Force close the stream to unblock stream.read()
+        if self.current_stream:
+            try:
+                self.current_stream.stop_stream()
+                self.current_stream.close()
+                self.logger.info("Stream forcibly closed")
+            except Exception as e:
+                self.logger.warning(f"Error closing stream: {e}")
     
-    def _record_pyaudio(self, temp_file: str, max_duration: float, 
+    def _record_pyaudio(self, temp_file: str, max_duration: float,
                        progress_callback: Optional[Callable[[float], None]]) -> None:
         """
         Record using PyAudio.
-        
+
         MIGRATION: Copy logic from your record_with_pyaudio() method here.
         """
         stream = self.audio_instance.open(
@@ -202,30 +212,40 @@ class AudioRecorder:
             input=True,
             frames_per_buffer=self.chunk_size
         )
-        
+
+        # Store stream so stop_recording() can close it
+        self.current_stream = stream
+
         frames = []
         start_time = time.time()
-        
-        while self.is_recording and (time.time() - start_time) < max_duration:
-            try:
-                data = stream.read(self.chunk_size, exception_on_overflow=False)
-                frames.append(data)
-                
-                # Progress callback
-                if progress_callback:
-                    elapsed = time.time() - start_time
-                    progress_callback(elapsed)
-                
-                # Check stop signal more frequently for better responsiveness
-                if not self.is_recording:
+
+        try:
+            while self.is_recording and (time.time() - start_time) < max_duration:
+                try:
+                    data = stream.read(self.chunk_size, exception_on_overflow=False)
+                    frames.append(data)
+
+                    # Progress callback
+                    if progress_callback:
+                        elapsed = time.time() - start_time
+                        progress_callback(elapsed)
+
+                    # Check stop signal more frequently for better responsiveness
+                    if not self.is_recording:
+                        break
+
+                except Exception as e:
+                    self.logger.warning(f"Audio read error: {e}")
                     break
-                    
-            except Exception as e:
-                self.logger.warning(f"Audio read error: {e}")
-                break
-        
-        stream.stop_stream()
-        stream.close()
+        finally:
+            # Always clean up the stream
+            try:
+                if stream.is_active():
+                    stream.stop_stream()
+                stream.close()
+            except:
+                pass
+            self.current_stream = None
         
         if not frames:
             raise Exception("No audio frames captured")
