@@ -201,7 +201,8 @@ class AudioRecorder:
             channels=self.channels,
             rate=self.sample_rate,
             input=True,
-            frames_per_buffer=self.chunk_size
+            frames_per_buffer=self.chunk_size,
+            stream_callback=None  # Blocking mode but with error handling
         )
 
         # Store stream so stop_recording() can close it
@@ -213,10 +214,17 @@ class AudioRecorder:
         try:
             while self.is_recording and (time.time() - start_time) < max_duration:
                 try:
-                    # Use shorter read timeout to check stop flag more frequently
-                    # Read smaller chunks to be more responsive to stop signal
-                    data = stream.read(self.chunk_size, exception_on_overflow=False)
-                    frames.append(data)
+                    # Read with timeout by checking available frames first
+                    available_frames = stream.get_read_available()
+
+                    if available_frames >= self.chunk_size:
+                        # Read full chunk if available
+                        data = stream.read(self.chunk_size, exception_on_overflow=False)
+                        frames.append(data)
+                    else:
+                        # Small sleep to avoid busy waiting
+                        time.sleep(0.01)
+                        continue
 
                     # Progress callback
                     if progress_callback:
