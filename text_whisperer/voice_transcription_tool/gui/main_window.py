@@ -77,22 +77,27 @@ class VoiceTranscriptionApp:
         # State variables
         self.is_recording = False
         self.recording_start_time = None
+        self.shutdown_requested = False  # Flag for clean thread shutdown
 
         # Queues for threading
         self.audio_queue = queue.Queue()
         self.transcription_queue = queue.Queue()
+
+        # Track background threads for clean shutdown
+        self.transcription_thread = None
+        self.ui_updater_thread = None
 
         # Initialize GUI
         self._create_gui()
         self._setup_hotkeys()
         self._start_background_threads()
 
-        # Start health monitor
+        # Start health monitor (no emergency callback - just log warnings)
         self.health_monitor = HealthMonitor(
-            memory_limit_mb=self.config.get('health_memory_limit', 1024),
-            cpu_limit_percent=self.config.get('health_cpu_limit', 95),
-            check_interval=self.config.get('health_check_interval', 30),
-            emergency_callback=self._emergency_shutdown
+            memory_limit_mb=self.config.get('health_memory_limit', 2048),  # Whisper needs more
+            cpu_limit_percent=self.config.get('health_cpu_limit', 98),
+            check_interval=self.config.get('health_check_interval', 30)
+            # emergency_callback removed - health monitor now only logs warnings
         )
         self.health_monitor.start()
 
@@ -311,18 +316,24 @@ class VoiceTranscriptionApp:
     
     def _start_background_threads(self):
         """Start background processing threads."""
-        threading.Thread(target=self._transcription_worker, daemon=True).start()
-        threading.Thread(target=self._ui_updater, daemon=True).start()
+        self.transcription_thread = threading.Thread(target=self._transcription_worker, daemon=True)
+        self.ui_updater_thread = threading.Thread(target=self._ui_updater, daemon=True)
+        self.transcription_thread.start()
+        self.ui_updater_thread.start()
     
     def _transcription_worker(self):
         """Background worker for transcription."""
-        while True:
+        while not self.shutdown_requested:
             try:
                 audio_file = self.audio_queue.get(timeout=1)
+                if self.shutdown_requested:
+                    break
+
                 self.logger.info("Processing audio for transcription...")
 
                 result = self.speech_manager.transcribe(audio_file)
-                self.transcription_queue.put(result)
+                if not self.shutdown_requested:
+                    self.transcription_queue.put(result)
 
                 # Clean up temp file
                 try:
@@ -334,15 +345,21 @@ class VoiceTranscriptionApp:
                 continue
             except Exception as e:
                 self.logger.error(f"Transcription worker error: {e}")
+
+        self.logger.info("Transcription worker thread shutting down")
     
     def _ui_updater(self):
         """Update UI with transcription results."""
-        while True:
+        while not self.shutdown_requested:
             try:
                 result = self.transcription_queue.get(timeout=1)
+                if self.shutdown_requested:
+                    break
                 self.root.after(0, lambda r=result: self._update_transcription_display(r))
             except queue.Empty:
                 continue
+
+        self.logger.info("UI updater thread shutting down")
     
     # Add all the remaining methods like _update_transcription_display, _copy_to_clipboard, etc.
     # Continue in next artifact...
@@ -359,10 +376,45 @@ class VoiceTranscriptionApp:
         except KeyboardInterrupt:
             self._on_closing()
     
+    def _shutdown_threads(self):
+        """Shutdown all background threads gracefully."""
+        self.logger.info("Shutting down background threads...")
+
+        # Signal threads to stop
+        self.shutdown_requested = True
+
+        # Clear queues to unblock any waiting threads
+        while not self.audio_queue.empty():
+            try:
+                self.audio_queue.get_nowait()
+            except queue.Empty:
+                break
+
+        while not self.transcription_queue.empty():
+            try:
+                self.transcription_queue.get_nowait()
+            except queue.Empty:
+                break
+
+        # Wait for threads to finish with timeout
+        threads_to_wait = [
+            (self.transcription_thread, "Transcription worker"),
+            (self.ui_updater_thread, "UI updater")
+        ]
+
+        for thread, name in threads_to_wait:
+            if thread and thread.is_alive():
+                self.logger.info(f"Waiting for {name} thread to finish...")
+                thread.join(timeout=2.0)
+                if thread.is_alive():
+                    self.logger.warning(f"{name} thread did not finish in time (daemon will be terminated)")
+                else:
+                    self.logger.info(f"{name} thread finished cleanly")
+
     def _on_closing(self):
         """Handle application closing."""
         self.logger.info("Application closing...")
-        
+
         # Save current window size
         geometry = self.root.geometry()
         if 'x' in geometry and '+' in geometry:
@@ -371,16 +423,19 @@ class VoiceTranscriptionApp:
                 'window_width': int(width),
                 'window_height': int(height)
             })
-        
+
         # Save current engine
         current_engine = self.speech_manager.get_current_engine()
         if current_engine:
             self.config.set('current_engine', current_engine)
-        
+
         # Save config
         self.config.save()
-        
-        # Cleanup
+
+        # Shutdown threads first
+        self._shutdown_threads()
+
+        # Cleanup managers
         self.hotkey_manager.unregister_hotkey()
         self.audio_recorder.cleanup()
 
@@ -393,8 +448,14 @@ class VoiceTranscriptionApp:
         """Emergency shutdown for system freeze prevention."""
         try:
             self.logger.warning("🚨 Emergency shutdown initiated")
-            
-            # Stop all background processes first
+
+            # Shutdown threads
+            try:
+                self._shutdown_threads()
+            except:
+                pass
+
+            # Stop all background processes
             if hasattr(self, 'hotkey_manager'):
                 try:
                     self.hotkey_manager.stop_all()
@@ -405,6 +466,7 @@ class VoiceTranscriptionApp:
             if hasattr(self, 'audio_recorder'):
                 try:
                     self.audio_recorder.stop_recording()
+                    self.audio_recorder.cleanup()
                     self.logger.info("Audio recorder stopped")
                 except:
                     pass
@@ -414,7 +476,7 @@ class VoiceTranscriptionApp:
                     self.health_monitor.stop()
                 except:
                     pass
-            
+
             # Force close GUI
             if hasattr(self, 'root'):
                 try:
@@ -422,7 +484,7 @@ class VoiceTranscriptionApp:
                     self.root.destroy()
                 except:
                     pass
-                    
+
         except Exception as e:
             # Last resort - don't let exceptions stop emergency shutdown
             pass
