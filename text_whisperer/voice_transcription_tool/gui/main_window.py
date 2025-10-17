@@ -30,7 +30,6 @@ from speech.engines import SpeechEngineManager
 from utils.hotkeys import HotkeyManager
 from utils.logger import DebugMessageHandler
 from utils.autopaste import AutoPasteManager
-from utils.system_tray import SystemTrayManager
 from utils.health_monitor import HealthMonitor
 
 try:
@@ -54,13 +53,12 @@ class VoiceTranscriptionApp:
     modular components instead of having everything in one class.
     """
     
-    def __init__(self, start_minimized: bool = False, enable_tray: bool = True):
+    def __init__(self, start_minimized: bool = False):
         self.logger = logging.getLogger(__name__)
         self.logger.info("Initializing Voice Transcription App")
-        
+
         # CLI options
         self.start_minimized = start_minimized
-        self.enable_tray = enable_tray
         
         # Initialize core components (modular!)
         self.config = ConfigManager()
@@ -80,10 +78,7 @@ class VoiceTranscriptionApp:
         
         # Initialize auto-paste manager
         self.autopaste_manager = AutoPasteManager()
-        
-        # Initialize system tray manager
-        self.system_tray = SystemTrayManager(self)
-        
+
         # Load saved engine preference
         saved_engine = self.config.get('current_engine', '')
         if saved_engine and self.speech_manager.is_engine_available(saved_engine):
@@ -203,10 +198,8 @@ class VoiceTranscriptionApp:
         ttk.Button(right_frame, text="⚙️ Settings", 
                   command=self._open_settings).pack(side="right", padx=(10, 0))
         
-        # Minimize to tray button
-        if self.system_tray.is_available():
-            ttk.Button(right_frame, text="📱 Minimize", 
-                      command=self._hide_to_tray).pack(side="right", padx=(10, 0))
+        # Minimize button (system tray disabled)
+        # System tray functionality has been removed
     
     def _create_main_tab(self):
         """Create the main transcription tab."""

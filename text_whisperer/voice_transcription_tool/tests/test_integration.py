@@ -139,13 +139,8 @@ class TestErrorHandlingIntegration:
                 feedback = AudioFeedback({'audio_feedback_enabled': True})
                 # Should disable itself gracefully
                 assert feedback.enabled is False
-        
-        with patch('utils.system_tray.PYSTRAY_AVAILABLE', False):
-            from utils.system_tray import SystemTrayManager
-            
-            tray = SystemTrayManager()
-            assert tray.is_available() is False
-            assert tray.start() is False
+
+        # System tray test removed - system tray disabled for production readiness
     
     def test_invalid_config_handling(self, temp_dir):
         """Test handling of invalid configuration values."""

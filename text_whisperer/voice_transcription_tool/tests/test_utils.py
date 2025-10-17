@@ -92,57 +92,7 @@ class TestAutoPasteManager:
         assert len(instructions) > 0
 
 
-class TestSystemTrayManager:
-    """Test the SystemTrayManager class."""
-    
-    def test_system_tray_initialization(self):
-        """Test system tray manager initialization."""
-        tray = SystemTrayManager()
-        
-        assert tray is not None
-        assert hasattr(tray, 'tray_icon')
-        assert hasattr(tray, 'is_running')
-        assert tray.is_running is False
-    
-    @patch('utils.system_tray.PYSTRAY_AVAILABLE', False)
-    def test_system_tray_unavailable(self):
-        """Test system tray when pystray is not available."""
-        tray = SystemTrayManager()
-        
-        assert tray.is_available() is False
-        assert tray.start() is False
-    
-    @patch('utils.system_tray.PYSTRAY_AVAILABLE', True)
-    def test_create_icon(self):
-        """Test creating tray icon."""
-        tray = SystemTrayManager()
-        
-        icon = tray.create_icon()
-        # Icon creation might fail in test environment, but shouldn't crash
-        assert icon is None or hasattr(icon, 'size')
-    
-    def test_callback_setters(self):
-        """Test setting callbacks."""
-        tray = SystemTrayManager()
-        
-        mock_callback = Mock()
-        
-        tray.set_show_callback(mock_callback)
-        assert tray.on_show_callback == mock_callback
-        
-        tray.set_hide_callback(mock_callback)
-        assert tray.on_hide_callback == mock_callback
-        
-        tray.set_quit_callback(mock_callback)
-        assert tray.on_quit_callback == mock_callback
-    
-    def test_get_install_instructions(self):
-        """Test getting installation instructions."""
-        tray = SystemTrayManager()
-        
-        instructions = tray.get_install_instructions()
-        assert isinstance(instructions, str)
-        assert 'pystray' in instructions or 'pillow' in instructions
+# TestSystemTrayManager removed - system tray disabled for production readiness
 
 
 class TestHotkeyManager:

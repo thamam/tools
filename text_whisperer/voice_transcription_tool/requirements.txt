@@ -25,10 +25,6 @@ requests>=2.25.0
 # Audio feedback (currently used)
 pygame>=2.0.0  # For audio playback and feedback sounds
 
-# System tray functionality (currently used)
-pystray>=0.19.0  # For system tray functionality
-pillow>=8.0.0   # For system tray icons
-
 # Cross-platform clipboard paste (optional but recommended)
 pyautogui>=0.9.50  # For cross-platform auto-paste fallback
 psutil>=5.9.0  # For resource monitoring
