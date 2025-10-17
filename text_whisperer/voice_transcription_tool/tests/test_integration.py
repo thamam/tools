@@ -106,11 +106,11 @@ class TestSystemIntegration:
         # Initialize system
         config = ConfigManager(str(config_file))
 
-        # Configure for auto-copy
+        # Configure for auto-copy (using empty string for engine since validation rejects 'test')
         config.update({
             'auto_copy_to_clipboard': True,
             'auto_paste_mode': False,  # Don't actually paste in tests
-            'current_engine': 'test'
+            'current_engine': ''  # Empty string is valid (will be set by SpeechEngineManager)
         })
         config.save()
 
@@ -122,7 +122,7 @@ class TestSystemIntegration:
         # Verify workflow parameters
         assert transcription_text is not None
         assert transcription_confidence > 0
-        assert transcription_method == 'test'
+        assert transcription_method == ''  # Empty is valid
 
 
 class TestErrorHandlingIntegration:
