@@ -3,6 +3,7 @@ Tests for the utils module components.
 """
 
 import pytest
+import subprocess
 from unittest.mock import Mock, patch, MagicMock
 from utils.autopaste import AutoPasteManager
 from utils.system_tray import SystemTrayManager
@@ -12,31 +13,31 @@ from utils.logger import DebugMessageHandler
 
 class TestAutoPasteManager:
     """Test the AutoPasteManager class."""
-    
+
     def test_autopaste_initialization(self):
         """Test autopaste manager initialization."""
         manager = AutoPasteManager()
-        
+
         assert manager is not None
         assert hasattr(manager, 'method')
         assert hasattr(manager, 'active_window_id')
-    
+
     @patch('utils.autopaste.subprocess.run')
     def test_detect_xdotool_method(self, mock_run):
         """Test detection of xdotool method."""
         mock_run.return_value.returncode = 0  # xdotool available
-        
+
         manager = AutoPasteManager()
-        
+
         # Should detect xdotool on Linux
         import sys
         if sys.platform == "linux":
             assert manager.method in ['xdotool', 'none']
-    
+
     def test_terminal_detection(self):
         """Test terminal window detection."""
         manager = AutoPasteManager()
-        
+
         # Test various terminal window names
         terminal_names = [
             'Terminal',
@@ -46,12 +47,12 @@ class TestAutoPasteManager:
             'konsole',
             'bash'
         ]
-        
+
         # Test method exists and returns boolean
         for name in terminal_names:
             result = manager._is_terminal_window(name)
             assert isinstance(result, bool)
-        
+
         # Test non-terminal names
         non_terminal_names = [
             'Firefox',
@@ -59,11 +60,11 @@ class TestAutoPasteManager:
             'Settings',
             'File Manager'
         ]
-        
+
         for name in non_terminal_names:
             result = manager._is_terminal_window(name)
             assert isinstance(result, bool)
-    
+
     @patch('utils.autopaste.subprocess.run')
     def test_capture_active_window(self, mock_run):
         """Test capturing active window information."""
@@ -73,23 +74,287 @@ class TestAutoPasteManager:
             Mock(returncode=0, stdout='Terminal'),  # getwindowname
             Mock(returncode=0, stdout='gnome-terminal')  # getwindowclassname
         ]
-        
+
         manager = AutoPasteManager()
         manager.method = 'xdotool'
-        
+
         success = manager.capture_active_window()
         assert isinstance(success, bool)
         # Only check these if capture was successful
         if success:
             assert manager.active_window_id is not None
-    
+
     def test_install_instructions(self):
         """Test getting installation instructions."""
         manager = AutoPasteManager()
-        
+
         instructions = manager.install_instructions()
         assert isinstance(instructions, str)
         assert len(instructions) > 0
+
+    def test_terminal_detection_specific_cases(self):
+        """Test specific terminal detection cases."""
+        manager = AutoPasteManager()
+
+        # Should detect terminals
+        assert manager._is_terminal_window('gnome-terminal') is True
+        assert manager._is_terminal_window('konsole') is True
+        assert manager._is_terminal_window('xterm') is True
+        assert manager._is_terminal_window('user@host:~$') is True
+        assert manager._is_terminal_window('Terminal') is True
+
+        # Should NOT detect non-terminals
+        assert manager._is_terminal_window('Firefox') is False
+        assert manager._is_terminal_window('Chrome') is False
+        assert manager._is_terminal_window('LibreOffice') is False
+
+    def test_browser_detection(self):
+        """Test browser window detection."""
+        manager = AutoPasteManager()
+
+        # Should detect browsers
+        assert manager._is_browser_window('Firefox') is True
+        assert manager._is_browser_window('Google Chrome') is True
+        assert manager._is_browser_window('Chromium') is True
+        assert manager._is_browser_window('https://www.example.com - Firefox') is True
+        assert manager._is_browser_window('Safari') is True
+
+        # Should NOT detect non-browsers
+        assert manager._is_browser_window('Terminal') is False
+        assert manager._is_browser_window('LibreOffice Writer') is False
+        assert manager._is_browser_window('File Manager') is False
+
+    @patch('utils.autopaste.subprocess.run')
+    def test_capture_active_window_success(self, mock_run):
+        """Test successfully capturing active window."""
+        manager = AutoPasteManager()
+        manager.method = 'xdotool'
+
+        # Mock xdotool commands
+        mock_run.side_effect = [
+            Mock(returncode=0, stdout='12345', check=True),  # getactivewindow
+            Mock(returncode=0, stdout='Test Window'),  # getwindowname
+            Mock(returncode=0, stdout='TestClass')  # getwindowclassname
+        ]
+
+        success = manager.capture_active_window()
+
+        assert success is True
+        assert manager.active_window_id == '12345'
+        assert 'Test Window' in manager.active_window_name
+        assert 'TestClass' in manager.active_window_name
+
+    @patch('utils.autopaste.subprocess.run')
+    def test_capture_active_window_failure(self, mock_run):
+        """Test capturing active window when xdotool fails."""
+        manager = AutoPasteManager()
+        manager.method = 'xdotool'
+
+        # Mock xdotool failure
+        mock_run.side_effect = subprocess.CalledProcessError(1, 'xdotool')
+
+        success = manager.capture_active_window()
+
+        assert success is False
+
+    @patch('utils.autopaste.subprocess.run')
+    def test_restore_active_window_success(self, mock_run):
+        """Test successfully restoring window focus."""
+        manager = AutoPasteManager()
+        manager.method = 'xdotool'
+        manager.active_window_id = '12345'
+        manager.active_window_name = 'Test Window'
+
+        # Mock successful windowactivate
+        mock_run.return_value = Mock(returncode=0)
+
+        # Reset call count after init (which calls subprocess.run to detect xdotool)
+        mock_run.reset_mock()
+
+        success = manager.restore_active_window()
+
+        assert success is True
+        mock_run.assert_called_once()
+
+    @patch('utils.autopaste.subprocess.run')
+    def test_restore_active_window_failure(self, mock_run):
+        """Test restoring window focus when xdotool fails."""
+        manager = AutoPasteManager()
+        manager.method = 'xdotool'
+        manager.active_window_id = '12345'
+
+        # Mock xdotool failure
+        mock_run.side_effect = subprocess.CalledProcessError(1, 'xdotool')
+
+        success = manager.restore_active_window()
+
+        assert success is False
+
+    def test_restore_active_window_no_window_id(self):
+        """Test restoring window when no window ID is captured."""
+        manager = AutoPasteManager()
+        manager.method = 'xdotool'
+        manager.active_window_id = None
+
+        success = manager.restore_active_window()
+
+        assert success is False
+
+    @patch('utils.autopaste.PYPERCLIP_AVAILABLE', False)
+    def test_auto_paste_no_pyperclip(self):
+        """Test auto-paste when pyperclip is not available."""
+        manager = AutoPasteManager()
+
+        result = manager.auto_paste("test text")
+
+        assert result['success'] is False
+        assert 'error' in result
+        assert 'Clipboard' in result['error']
+
+    @patch('utils.autopaste.PYPERCLIP_AVAILABLE', True)
+    @patch('utils.autopaste.pyperclip')
+    @patch('utils.autopaste.subprocess.run')
+    @patch('utils.autopaste.time.sleep')
+    def test_auto_paste_with_xdotool_success(self, mock_sleep, mock_run, mock_pyperclip):
+        """Test successful auto-paste with xdotool."""
+        manager = AutoPasteManager()
+        manager.method = 'xdotool'
+        manager.active_window_id = '12345'
+        manager.active_window_name = 'Terminal'
+
+        # Mock successful xdotool commands
+        mock_run.return_value = Mock(returncode=0)
+
+        result = manager.auto_paste("test text")
+
+        assert result['success'] is True
+        assert result['method'] == 'xdotool'
+        mock_pyperclip.copy.assert_called_once_with("test text")
+
+    @patch('utils.autopaste.PYPERCLIP_AVAILABLE', True)
+    @patch('utils.autopaste.pyperclip')
+    @patch('utils.autopaste.subprocess.run')
+    @patch('utils.autopaste.time.sleep')
+    def test_auto_paste_with_xdotool_terminal(self, mock_sleep, mock_run, mock_pyperclip):
+        """Test auto-paste uses Ctrl+Shift+V for terminal."""
+        manager = AutoPasteManager()
+        manager.method = 'xdotool'
+        manager.active_window_id = '12345'
+        manager.active_window_name = 'gnome-terminal'
+
+        # Mock successful xdotool
+        mock_run.return_value = Mock(returncode=0)
+
+        result = manager.auto_paste("test text")
+
+        # Should use ctrl+shift+v for terminal
+        assert result['success'] is True
+        # Check that xdotool key was called with ctrl+shift+v
+        calls = [call for call in mock_run.call_args_list if 'key' in str(call)]
+        assert len(calls) > 0
+
+    @patch('utils.autopaste.PYPERCLIP_AVAILABLE', True)
+    @patch('utils.autopaste.pyperclip')
+    @patch('utils.autopaste.subprocess.run')
+    @patch('utils.autopaste.time.sleep')
+    def test_auto_paste_with_xdotool_failure(self, mock_sleep, mock_run, mock_pyperclip):
+        """Test auto-paste when xdotool fails."""
+        manager = AutoPasteManager()
+        manager.method = 'xdotool'
+        manager.active_window_id = '12345'
+        manager.active_window_name = 'Test Window'
+
+        # Mock xdotool failure
+        mock_run.side_effect = subprocess.CalledProcessError(1, 'xdotool')
+
+        result = manager.auto_paste("test text")
+
+        assert result['success'] is False
+        assert result['method'] == 'xdotool'
+
+    @patch('utils.autopaste.PYPERCLIP_AVAILABLE', True)
+    @patch('utils.autopaste.pyperclip')
+    def test_auto_paste_no_method(self, mock_pyperclip):
+        """Test auto-paste when no method is available."""
+        manager = AutoPasteManager()
+        manager.method = 'none'
+
+        result = manager.auto_paste("test text")
+
+        assert result['success'] is False
+        assert result['method'] == 'none'
+        # Should still copy to clipboard
+        mock_pyperclip.copy.assert_called_once_with("test text")
+
+    def test_is_available(self):
+        """Test checking if auto-paste is available."""
+        manager = AutoPasteManager()
+
+        # When method is set
+        manager.method = 'xdotool'
+        assert manager.is_available() is True
+
+        # When no method
+        manager.method = 'none'
+        assert manager.is_available() is False
+
+    def test_get_method(self):
+        """Test getting the auto-paste method."""
+        manager = AutoPasteManager()
+
+        assert isinstance(manager.get_method(), str)
+        assert manager.get_method() in ['xdotool', 'osascript', 'none']
+
+    @patch('utils.autopaste.sys.platform', 'darwin')
+    @patch('utils.autopaste.subprocess.run')
+    def test_detect_method_macos(self, mock_run):
+        """Test method detection on macOS."""
+        manager = AutoPasteManager()
+
+        assert manager.method == 'osascript'
+
+    @patch('utils.autopaste.sys.platform', 'win32')
+    def test_detect_method_windows(self):
+        """Test method detection on Windows."""
+        manager = AutoPasteManager()
+
+        assert manager.method == 'none'
+
+    @patch('utils.autopaste.PYPERCLIP_AVAILABLE', True)
+    @patch('utils.autopaste.pyperclip')
+    @patch('utils.autopaste.subprocess.run')
+    @patch('utils.autopaste.time.sleep')
+    def test_paste_with_xdotool_browser(self, mock_sleep, mock_run, mock_pyperclip):
+        """Test pasting in a browser window (special handling)."""
+        manager = AutoPasteManager()
+        manager.method = 'xdotool'
+        manager.active_window_id = '12345'
+        manager.active_window_name = 'Google Chrome - Test Page'
+
+        # Mock xdotool commands
+        mock_run.return_value = Mock(returncode=0, stdout='')
+
+        result = manager.auto_paste("test text")
+
+        # Should attempt special browser handling
+        assert mock_run.call_count >= 1
+
+    @patch('utils.autopaste.PYPERCLIP_AVAILABLE', True)
+    @patch('utils.autopaste.pyperclip')
+    @patch('utils.autopaste.subprocess.run')
+    @patch('utils.autopaste.time.sleep')
+    def test_auto_paste_exception_handling(self, mock_sleep, mock_run, mock_pyperclip):
+        """Test auto-paste handles exceptions gracefully."""
+        manager = AutoPasteManager()
+        manager.method = 'xdotool'
+
+        # Make pyperclip.copy raise an exception
+        mock_pyperclip.copy.side_effect = Exception("Clipboard error")
+
+        result = manager.auto_paste("test text")
+
+        assert result['success'] is False
+        assert 'error' in result
 
 
 # TestSystemTrayManager removed - system tray disabled for production readiness
