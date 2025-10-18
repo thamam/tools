@@ -229,7 +229,9 @@ class AudioRecorder:
             }
 
         self.is_recording = True
-        temp_file = tempfile.mktemp(suffix=".wav")
+        # Use NamedTemporaryFile instead of mktemp() to avoid race condition vulnerability
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_f:
+            temp_file = temp_f.name
 
         try:
             if self.audio_method == "pyaudio":

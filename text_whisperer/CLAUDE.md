@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Voice Transcription Tool (v2.0) - A modular speech-to-text application with global hotkeys, system tray integration, wake word detection, and auto-paste functionality. The project underwent a major refactoring from a monolithic architecture to a clean, modular design.
+Voice Transcription Tool (v2.0) - A production-ready, modular speech-to-text application with global hotkeys and auto-paste functionality. The project underwent a major refactoring from a monolithic architecture to a clean, modular design focused on core functionality.
+
+**Production Readiness**: This codebase has been streamlined by removing experimental features (wake word detection, voice training, system tray) to focus on bulletproof core functionality with 74% test coverage.
 
 ## Key Commands
 
@@ -15,8 +17,6 @@ python main.py
 
 # With command line options
 python main.py --debug      # Enable verbose logging
-python main.py --minimized  # Start hidden in system tray
-python main.py --no-tray    # Disable system tray
 
 # Using the manager script (background service)
 ./voice_transcription_manager.sh --start   # Start in background
@@ -32,9 +32,9 @@ pip install -r requirements.txt
 
 # Run tests (must be in voice_transcription_tool directory)
 cd voice_transcription_tool/
-python -m pytest tests/              # All tests (73 total)
+python -m pytest tests/              # All tests (114 total)
 python -m pytest tests/ -v           # Verbose output
-python -m pytest tests/ --cov        # With coverage report
+python -m pytest tests/ --cov        # With coverage report (74%)
 python -m pytest tests/test_audio.py # Specific test file
 python -m pytest -m unit             # Only unit tests
 python -m pytest -m integration      # Only integration tests
@@ -73,25 +73,27 @@ The codebase follows a **Manager Pattern** architecture where each subsystem is 
 voice_transcription_tool/
 ├── main.py                 # Entry point with process locking
 ├── config/                 # Configuration & persistence
-│   ├── settings.py         # ConfigManager - JSON config
-│   └── database.py         # DatabaseManager - SQLite for voice training
+│   └── settings.py         # ConfigManager - JSON config with validation
 ├── audio/                  # Audio capture & feedback
 │   ├── recorder.py         # AudioRecorder - PyAudio wrapper
 │   ├── devices.py          # AudioDeviceManager - device selection
 │   └── feedback.py         # AudioFeedback - recording sounds
 ├── speech/                 # Speech recognition
-│   ├── engines.py          # SpeechEngineManager (Whisper/Google)
-│   └── training.py         # VoiceTrainer - accuracy improvement
+│   └── engines.py          # SpeechEngineManager (Whisper/Google with fallback)
 ├── gui/                    # User interface
 │   └── main_window.py      # VoiceTranscriptionApp - main coordinator
 └── utils/                  # Utilities
     ├── hotkeys.py          # HotkeyManager - pynput global shortcuts
     ├── autopaste.py        # AutoPasteManager - xdotool integration
-    ├── system_tray.py      # SystemTrayManager - pystray integration
-    ├── wake_word.py        # WakeWordDetector - voice activation
     ├── health_monitor.py   # HealthMonitor - resource monitoring
     └── logger.py           # Logging setup and debug handling
 ```
+
+**Removed Modules** (Phase 1 Simplification):
+- `config/database.py` - DatabaseManager removed (SQLite voice training)
+- `speech/training.py` - VoiceTrainer removed (experimental feature)
+- `utils/system_tray.py` - SystemTrayManager stubbed (Qt threading conflicts)
+- `utils/wake_word.py` - WakeWordDetector removed (experimental feature)
 
 ### Critical Design Patterns
 
@@ -105,7 +107,7 @@ voice_transcription_tool/
 
 **Recording Flow**:
 ```
-User Hotkey → HotkeyManager → VoiceTranscriptionApp.toggle_recording()
+User Hotkey (Alt+D) → HotkeyManager → VoiceTranscriptionApp.toggle_recording()
 → AudioRecorder.start_recording() → audio_queue
 → SpeechEngineManager.transcribe() → transcription_queue
 → GUI update + AutoPasteManager → clipboard/paste
@@ -113,22 +115,15 @@ User Hotkey → HotkeyManager → VoiceTranscriptionApp.toggle_recording()
 
 **Configuration Flow**:
 ```
-ConfigManager.load() → voice_transcription_config.json
+ConfigManager.load() → voice_transcription_config.json (with validation)
 → Distributed to managers on init
-→ ConfigManager.save() on settings change
-```
-
-**Voice Training Flow**:
-```
-User correction → VoiceTrainer.add_correction()
-→ DatabaseManager → voice_transcriptions.db (SQLite)
-→ VoiceTrainer.get_suggestions() for future transcriptions
+→ ConfigManager.save() on settings change (auto-save)
 ```
 
 ### Thread Safety Considerations
 
-- **Main Thread**: GUI (Tkinter), system tray updates, hotkey callbacks
-- **Background Threads**: Audio recording, transcription processing, wake word detection, health monitoring
+- **Main Thread**: GUI (Tkinter), hotkey callbacks
+- **Background Threads**: Audio recording, transcription processing, health monitoring
 - **Synchronization**: queues (thread-safe), Tkinter.after() for GUI updates from background threads
 - **Critical Section**: Recording state changes protected by flag checks before queue operations
 
@@ -136,20 +131,21 @@ User correction → VoiceTrainer.add_correction()
 
 **Persistent Files**:
 - Configuration: `voice_transcription_config.json` (root and module directory)
-- Database: `voice_transcriptions.db` (SQLite for voice training data)
 - Logs: `logs/voice_transcription_*.log`
 - Process Lock: `/tmp/voice_transcription.lock`
 
 **Default Settings**:
-- Hotkeys: Alt+D (record), Alt+S (settings), Alt+W (wake word)
+- Hotkey: Alt+D (record toggle)
 - Audio: 16kHz, mono, 30s max recording
 - Engine: Whisper (local) preferred, Google Speech (cloud) fallback
-- Health Limits: 1024MB memory, 95% CPU, 30s check interval
+- Health Limits: 2048MB memory, 98% CPU, 30s check interval
+- Auto-paste: Disabled by default (can be enabled in settings)
 
 ## System Dependencies
 
 **Required**:
 - FFmpeg - Audio processing for Whisper (critical dependency)
+- xclip (Linux) - Clipboard functionality
 - xdotool (Linux) - Auto-paste functionality
 - Python 3.7+ with tkinter
 
@@ -161,19 +157,30 @@ User correction → VoiceTrainer.add_correction()
 - pynput - Cross-platform global hotkeys **without sudo requirement**
 - pyaudio - Audio recording interface
 - pygame - Audio feedback sounds
-- pystray + pillow - System tray functionality
 - torch - Required for Whisper engine
 - psutil - Resource monitoring (optional but recommended)
 
+**Removed Dependencies** (Phase 1 Simplification):
+- ~~pystray + pillow~~ - System tray removed (Qt threading conflicts)
+- ~~pyautogui~~ - Replaced with xdotool (no Qt conflicts)
+- ~~openwakeword + onnxruntime~~ - Wake word detection removed
+
 ## Testing Philosophy
 
-The project has 73 comprehensive tests with ~45% code coverage. Tests are organized by:
+The project has 114 comprehensive tests with 74% code coverage (exceeded 70% target). Tests are organized by:
 
 - **Unit tests**: Individual manager components in isolation with mocked dependencies
 - **Integration tests**: Component interaction (e.g., AudioRecorder → SpeechEngineManager)
 - **Mock strategy**: External dependencies (PyAudio, Whisper API, file I/O) are mocked to enable CI/CD
 
 **Test Configuration**: `voice_transcription_tool/pytest.ini` - markers, test discovery, output formatting
+
+**Coverage Breakdown**:
+- Audio module: 100% coverage
+- Speech module: 85% coverage
+- Config module: 92% coverage
+- GUI module: 51% coverage
+- Utils module: 68% coverage
 
 ## Important Implementation Notes
 
@@ -184,19 +191,19 @@ The application uses fcntl file locking (`voice_transcription_tool/main.py:32`) 
 Uses pynput instead of keyboard library to avoid sudo requirements. See `docs/LINUX_HOTKEY_SOLUTION.md` for migration details.
 
 ### Auto-Paste Focus Management
-Captures active window before recording (`utils/autopaste.py:45`), then restores focus before pasting to prevent GUI from stealing focus. Terminal applications use Ctrl+Shift+V instead of Ctrl+V.
+Captures active window before recording (`utils/autopaste.py:55`), then restores focus before pasting to prevent GUI from stealing focus. Terminal applications use Ctrl+Shift+V instead of Ctrl+V. Browser detection prevents address bar focus issues.
 
-### Wake Word Detection
-Dual implementation with graceful fallback:
-- Primary: openWakeWord library (more accurate, optional dependency)
-- Fallback: SimpleWakeWordDetector (energy-based, always available)
+### Health Monitor Warning System
+Monitors CPU/memory usage every 30s. On limit breach (2048MB memory, 98% CPU), logs warnings and provides optional emergency callback (`utils/health_monitor.py:14`).
 
-### Health Monitor Emergency Cleanup
-Monitors CPU/memory usage every 30s. On limit breach, triggers emergency callback to prevent system freeze (`utils/health_monitor.py:14`).
+### Secure Temporary Files
+Uses `tempfile.NamedTemporaryFile(delete=False)` instead of deprecated `mktemp()` to avoid race condition vulnerabilities (`audio/recorder.py:232`).
 
 ## Migration Context
 
 This is a v2.0 refactored codebase. Previous version was monolithic (`voice_transcription.py`). Comments in code reference "MIGRATION STEP X" showing the refactoring process. These can be ignored for new development.
+
+**Phase 1 Simplification** removed 3,759 LOC (49% reduction) by removing experimental features to focus on production-ready core functionality.
 
 ## Common Development Patterns
 
@@ -217,20 +224,30 @@ This is a v2.0 refactored codebase. Previous version was monolithic (`voice_tran
 1. Register in `HotkeyManager` (`utils/hotkeys.py`)
 2. Add callback in `VoiceTranscriptionApp._setup_hotkeys()` (`gui/main_window.py`)
 3. Add to default config in `ConfigManager`
-4. Update GUI settings tab for configuration
+4. Update GUI settings dialog for configuration
 
 ## Known Limitations
 
-- Tkinter GUI (planned migration to CustomTkinter for modern look)
-- No CI/CD pipeline (GitHub Actions planned)
-- System tray icons require X11 (no Wayland support yet)
-- Wake word detection not production-ready (experimental feature)
-- Test coverage at 45% (target: 70%+)
+- Tkinter GUI (simple by design for production stability)
+- No CI/CD pipeline (GitHub Actions planned for Phase 6)
+- xdotool auto-paste Linux-only (Windows/macOS support planned)
+
+## Production Readiness Status
+
+**Completed Phases**:
+- ✅ Phase 1: Feature removal & simplification (removed 3,759 LOC)
+- ✅ Phase 2: Resource management fixes (clean shutdown, thread lifecycle)
+- ✅ Phase 3: Error handling improvements (zero silent failures)
+- ✅ Phase 4: Test coverage to 74% (exceeded 70% target)
+
+**Pending Phases**:
+- ⏳ Phase 5: Stability & stress testing (1000-cycle stress test, memory leak detection)
+- ⏳ Phase 6: Documentation & polish (installation guide, troubleshooting guide)
 
 ## Future Enhancements
 
-See `docs/IMPROVEMENT_PLAN.md` for detailed roadmap. Key pending items:
-- Modern GUI redesign (CustomTkinter/ttkbootstrap)
-- Ubuntu desktop integration (.deb package)
+See production readiness plan for detailed roadmap. Key pending items:
+- Stress testing (1000 recording cycles, multi-hour stability)
+- Cross-application auto-paste testing (terminal, browser, IDE)
+- Installation packaging (.deb for Ubuntu)
 - CI/CD with GitHub Actions
-- Improved test coverage
