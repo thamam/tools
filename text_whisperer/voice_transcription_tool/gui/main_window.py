@@ -683,16 +683,100 @@ class VoiceTranscriptionApp:
             messagebox.showwarning("Warning", "No text to copy")
 
     def _open_settings(self):
-        """Open simplified settings dialog."""
+        """Open simplified settings dialog with auto-save."""
         settings_window = tk.Toplevel(self.root)
         settings_window.title("Settings")
-        settings_window.geometry("500x550")
+        settings_window.geometry("500x600")
         settings_window.transient(self.root)
         settings_window.grab_set()
 
         # Main container
         main_frame = ttk.Frame(settings_window, padding="20")
         main_frame.pack(fill="both", expand=True)
+
+        # Status label at the top for feedback
+        status_label = ttk.Label(main_frame, text="", font=("Arial", 9))
+        status_label.pack(anchor="w", pady=(0, 10))
+
+        # Helper function to show status messages
+        def show_status(message, color="green"):
+            """Display status message for 2 seconds then clear."""
+            status_label.configure(text=message, foreground=color)
+            settings_window.after(2000, lambda: status_label.configure(text=""))
+
+        # Auto-save helper functions
+        def _change_engine():
+            """Auto-save engine selection."""
+            new_engine = engine_var.get()
+            if new_engine != self.speech_manager.get_current_engine():
+                if self.speech_manager.set_engine(new_engine):
+                    self.config.set('current_engine', new_engine)
+                    self.config.save()
+                    self.logger.info(f"Engine changed to: {new_engine}")
+                    show_status(f"✓ Engine changed to {new_engine.capitalize()}")
+                else:
+                    self.logger.error(f"Failed to change engine to: {new_engine}")
+                    show_status(f"✗ Failed to change engine", "red")
+
+        def _change_hotkey():
+            """Auto-save hotkey change."""
+            new_hotkey = hotkey_var.get()
+            old_hotkey = self.config.get('hotkey_combination', 'alt+d')
+
+            if new_hotkey != old_hotkey:
+                success = self.hotkey_manager.register_hotkey(new_hotkey, self._hotkey_callback)
+                if success:
+                    self.config.set('hotkey_combination', new_hotkey)
+                    self.config.save()
+                    self.logger.info(f"Hotkey changed to: {new_hotkey}")
+                    show_status(f"✓ Hotkey changed to {new_hotkey}")
+                else:
+                    hotkey_var.set(old_hotkey)
+                    self.logger.error(f"Failed to register hotkey: {new_hotkey}")
+                    show_status(f"✗ Failed to register hotkey", "red")
+
+        def _toggle_autopaste():
+            """Auto-save auto-paste toggle."""
+            enabled = auto_paste_var.get()
+            self.config.set('auto_paste_mode', enabled)
+            self.config.save()
+            self.logger.info(f"Auto-paste {'enabled' if enabled else 'disabled'}")
+            show_status(f"✓ Auto-paste {'enabled' if enabled else 'disabled'}")
+
+        def _toggle_audio_feedback():
+            """Auto-save audio feedback toggle."""
+            enabled = feedback_enabled_var.get()
+            self.config.set('audio_feedback_enabled', enabled)
+            self.audio_feedback.set_enabled(enabled)
+            self.config.save()
+            self.logger.info(f"Audio feedback {'enabled' if enabled else 'disabled'}")
+            show_status(f"✓ Audio feedback {'enabled' if enabled else 'disabled'}")
+
+        def _reset_to_defaults():
+            """Reset all settings to defaults with confirmation."""
+            if messagebox.askyesno("Reset Settings",
+                                   "Reset all settings to defaults?\n\n" +
+                                   "• Engine: Whisper\n" +
+                                   "• Hotkey: Alt+D\n" +
+                                   "• Auto-paste: Disabled\n" +
+                                   "• Audio feedback: Enabled"):
+                # Reset engine
+                engine_var.set("whisper")
+                _change_engine()
+
+                # Reset hotkey
+                hotkey_var.set("alt+d")
+                _change_hotkey()
+
+                # Reset auto-paste
+                auto_paste_var.set(False)
+                _toggle_autopaste()
+
+                # Reset audio feedback
+                feedback_enabled_var.set(True)
+                _toggle_audio_feedback()
+
+                show_status("✓ All settings reset to defaults")
 
         # Engine selection
         engine_frame = ttk.LabelFrame(main_frame, text="Speech Engine", padding="10")
@@ -706,10 +790,12 @@ class VoiceTranscriptionApp:
         for engine in available_engines:
             if engine == 'whisper':
                 ttk.Radiobutton(engine_frame, text="Whisper (Local, High Quality)",
-                                variable=engine_var, value="whisper").pack(anchor="w")
+                                variable=engine_var, value="whisper",
+                                command=_change_engine).pack(anchor="w")
             elif engine == 'google':
                 ttk.Radiobutton(engine_frame, text="Google Speech Recognition (Online)",
-                                variable=engine_var, value="google").pack(anchor="w")
+                                variable=engine_var, value="google",
+                                command=_change_engine).pack(anchor="w")
 
         if not available_engines:
             ttk.Label(engine_frame, text="⚠️ No speech engines available",
@@ -739,7 +825,8 @@ class VoiceTranscriptionApp:
         ]
 
         for value, label in common_hotkeys:
-            ttk.Radiobutton(hotkey_frame, text=label, variable=hotkey_var, value=value).pack(anchor="w")
+            ttk.Radiobutton(hotkey_frame, text=label, variable=hotkey_var, value=value,
+                           command=_change_hotkey).pack(anchor="w")
 
         # Auto-paste settings
         paste_frame = ttk.LabelFrame(main_frame, text="Auto-paste", padding="10")
@@ -747,7 +834,8 @@ class VoiceTranscriptionApp:
 
         auto_paste_var = tk.BooleanVar(value=self.config.get('auto_paste_mode', False))
         ttk.Checkbutton(paste_frame, text="Enable auto-paste at cursor",
-                       variable=auto_paste_var).pack(anchor="w")
+                       variable=auto_paste_var,
+                       command=_toggle_autopaste).pack(anchor="w")
 
         # Auto-paste status
         if self.autopaste_manager.is_available():
@@ -766,52 +854,16 @@ class VoiceTranscriptionApp:
 
         feedback_enabled_var = tk.BooleanVar(value=self.config.get('audio_feedback_enabled', True))
         ttk.Checkbutton(audio_frame, text="Enable audio beeps (start/stop)",
-                       variable=feedback_enabled_var).pack(anchor="w")
-
-        # Save button
-        def save_settings():
-            self.logger.info("Saving settings...")
-
-            # Update speech engine
-            new_engine = engine_var.get()
-            if new_engine != self.speech_manager.get_current_engine():
-                if self.speech_manager.set_engine(new_engine):
-                    self.logger.info(f"Engine changed to: {new_engine}")
-                else:
-                    messagebox.showerror("Error", f"Failed to change engine to: {new_engine}")
-
-            # Update hotkey
-            new_hotkey = hotkey_var.get()
-            old_hotkey = self.config.get('hotkey_combination', 'alt+d')
-
-            if new_hotkey != old_hotkey:
-                success = self.hotkey_manager.register_hotkey(new_hotkey, self._hotkey_callback)
-                if success:
-                    self.config.set('hotkey_combination', new_hotkey)
-                    self.logger.info(f"Hotkey changed to: {new_hotkey}")
-                else:
-                    hotkey_var.set(old_hotkey)
-                    messagebox.showerror("Error", f"Failed to register hotkey: {new_hotkey}")
-
-            # Save settings
-            self.config.set('auto_paste_mode', auto_paste_var.get())
-            self.config.set('audio_feedback_enabled', feedback_enabled_var.get())
-
-            # Apply audio feedback setting
-            self.audio_feedback.set_enabled(feedback_enabled_var.get())
-
-            # Save all settings
-            self.config.save()
-            self.logger.info("Settings saved")
-            settings_window.destroy()
+                       variable=feedback_enabled_var,
+                       command=_toggle_audio_feedback).pack(anchor="w")
 
         # Bottom buttons
         button_frame = ttk.Frame(main_frame)
         button_frame.pack(fill="x", pady=(15, 0))
 
-        ttk.Button(button_frame, text="Save",
-                   command=save_settings).pack(side="right", padx=(10, 0))
-        ttk.Button(button_frame, text="Cancel",
+        ttk.Button(button_frame, text="Reset to Defaults",
+                   command=_reset_to_defaults).pack(side="left")
+        ttk.Button(button_frame, text="Close",
                    command=settings_window.destroy).pack(side="right")
 
 # END OF VoiceTranscriptionApp CLASS
