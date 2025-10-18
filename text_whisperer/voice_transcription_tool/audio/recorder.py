@@ -18,7 +18,9 @@ import subprocess
 import platform
 import time
 import threading
-from typing import Optional, Callable
+import struct
+import math
+from typing import Optional, Callable, Dict, Any
 from pathlib import Path
 
 try:
@@ -43,13 +45,14 @@ class AudioRecorder:
         self.audio_method = None
         self.audio_instance = None
         self.format = None
-        
+        self.current_stream = None  # Store current recording stream for cleanup
+
         self._init_audio_method()
     
     def _init_audio_method(self) -> None:
         """
         Initialize the best available audio recording method.
-        
+
         MIGRATION: Copy the logic from your init_audio() method here.
         """
         if PYAUDIO_AVAILABLE:
@@ -59,6 +62,19 @@ class AudioRecorder:
                 self.format = pyaudio.paInt16
                 self.audio_method = "pyaudio"
                 self.logger.info("✅ PyAudio initialized")
+
+                # Check if there are any input devices available
+                device_count = self.audio_instance.get_device_count()
+                has_input_device = False
+                for i in range(device_count):
+                    device_info = self.audio_instance.get_device_info_by_index(i)
+                    if device_info.get('maxInputChannels', 0) > 0:
+                        has_input_device = True
+                        break
+
+                if not has_input_device:
+                    self.logger.warning("No input devices detected")
+
                 return
             except Exception as e:
                 self.logger.warning(f"PyAudio failed: {e}")
@@ -88,6 +104,51 @@ class AudioRecorder:
             subprocess.run(["which", command], check=True, capture_output=True)
             return True
         except subprocess.CalledProcessError:
+            return False
+
+    def _calculate_rms(self, audio_data: bytes) -> float:
+        """Calculate RMS (Root Mean Square) amplitude of audio data."""
+        if not audio_data:
+            return 0.0
+
+        try:
+            # Convert bytes to array of integers (16-bit audio)
+            count = len(audio_data) // 2
+            format_str = f"{count}h"
+            shorts = struct.unpack(format_str, audio_data)
+
+            # Calculate RMS
+            sum_squares = sum(sample ** 2 for sample in shorts)
+            rms = math.sqrt(sum_squares / count) if count > 0 else 0.0
+            return rms
+        except Exception as e:
+            self.logger.warning(f"Failed to calculate RMS: {e}")
+            return 0.0
+
+    def _is_silent(self, audio_file: str, threshold: float = 500.0) -> bool:
+        """
+        Check if recorded audio is mostly silent.
+
+        Args:
+            audio_file: Path to the audio file
+            threshold: RMS threshold below which audio is considered silent
+
+        Returns:
+            True if audio is silent, False otherwise
+        """
+        try:
+            with wave.open(audio_file, 'rb') as wf:
+                # Read all frames
+                frames = wf.readframes(wf.getnframes())
+
+                # Calculate RMS
+                rms = self._calculate_rms(frames)
+
+                self.logger.info(f"Audio RMS level: {rms:.2f} (threshold: {threshold})")
+
+                return rms < threshold
+        except Exception as e:
+            self.logger.error(f"Failed to check silence: {e}")
             return False
     
     def test_recording(self, duration: float = 1.0, device_index: Optional[int] = None) -> bool:
@@ -137,24 +198,41 @@ class AudioRecorder:
             self.logger.error(f"PyAudio test failed: {e}")
             return False
     
-    def start_recording(self, max_duration: float, 
-                       progress_callback: Optional[Callable[[float], None]] = None) -> Optional[str]:
+    def start_recording(self, max_duration: float,
+                       progress_callback: Optional[Callable[[float], None]] = None) -> Dict[str, Any]:
         """
-        Start recording audio and return the temp file path.
-        
+        Start recording audio and return result with file path or error details.
+
         MIGRATION: Copy logic from your record_audio() method here.
+
+        Returns:
+            Dict with keys:
+                - success: bool - Whether recording succeeded
+                - audio_file: str - Path to audio file (if success=True)
+                - error: str - Error message (if success=False)
+                - error_type: str - Type of error (if success=False)
         """
         if self.is_recording:
             self.logger.warning("Recording already in progress")
-            return None
-        
+            return {
+                'success': False,
+                'error': 'Recording already in progress',
+                'error_type': 'already_recording'
+            }
+
         if not self.audio_method:
             self.logger.error("No audio recording method available")
-            return None
-        
+            return {
+                'success': False,
+                'error': 'No audio recording method available. Please check your audio setup.',
+                'error_type': 'no_audio_method'
+            }
+
         self.is_recording = True
-        temp_file = tempfile.mktemp(suffix=".wav")
-        
+        # Use NamedTemporaryFile instead of mktemp() to avoid race condition vulnerability
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_f:
+            temp_file = temp_f.name
+
         try:
             if self.audio_method == "pyaudio":
                 self._record_pyaudio(temp_file, max_duration, progress_callback)
@@ -164,22 +242,55 @@ class AudioRecorder:
                 self._record_ffmpeg(temp_file, max_duration)
             else:
                 raise Exception(f"Unsupported audio method: {self.audio_method}")
-            
-            # Verify recording
-            if Path(temp_file).exists() and Path(temp_file).stat().st_size > 0:
-                self.logger.info(f"Recording completed: {Path(temp_file).stat().st_size} bytes")
-                return temp_file
-            else:
-                raise Exception("No audio data recorded")
-                
-        except Exception as e:
+
+            # Verify recording exists
+            if not Path(temp_file).exists() or Path(temp_file).stat().st_size == 0:
+                raise Exception("No audio data recorded - file is empty")
+
+            file_size = Path(temp_file).stat().st_size
+            self.logger.info(f"Recording completed: {file_size} bytes")
+
+            # Check if audio is silent
+            if self._is_silent(temp_file):
+                self.logger.warning("No speech detected - audio is mostly silent")
+                return {
+                    'success': False,
+                    'audio_file': temp_file,
+                    'error': 'No speech detected. Please check:\n• Microphone is not muted\n• Microphone volume is sufficient\n• Speaking closer to microphone',
+                    'error_type': 'silent_audio'
+                }
+
+            return {
+                'success': True,
+                'audio_file': temp_file
+            }
+
+        except OSError as e:
+            error_msg = f"Failed to start recording. Please check:\n• Microphone is connected\n• Microphone permissions are granted\n\nError: {str(e)}"
             self.logger.error(f"Recording failed: {e}")
             # Clean up failed recording
             try:
                 Path(temp_file).unlink(missing_ok=True)
             except:
                 pass
-            return None
+            return {
+                'success': False,
+                'error': error_msg,
+                'error_type': 'device_error'
+            }
+        except Exception as e:
+            error_msg = f"Recording error: {str(e)}"
+            self.logger.error(error_msg)
+            # Clean up failed recording
+            try:
+                Path(temp_file).unlink(missing_ok=True)
+            except:
+                pass
+            return {
+                'success': False,
+                'error': error_msg,
+                'error_type': 'recording_error'
+            }
         finally:
             self.is_recording = False
     
@@ -188,48 +299,76 @@ class AudioRecorder:
         self.is_recording = False
         self.logger.info("Recording stop requested")
     
-    def _record_pyaudio(self, temp_file: str, max_duration: float, 
-                       progress_callback: Optional[Callable[[float], None]]) -> None:
+    def _record_pyaudio(self, temp_file: str, max_duration: float,
+                       progress_callback: Optional[Callable[[float, float], None]]) -> None:
         """
         Record using PyAudio.
-        
+
         MIGRATION: Copy logic from your record_with_pyaudio() method here.
+
+        Args:
+            temp_file: Path to save audio file
+            max_duration: Maximum recording duration in seconds
+            progress_callback: Callback(elapsed_time, audio_level) called during recording
         """
         stream = self.audio_instance.open(
             format=self.format,
             channels=self.channels,
             rate=self.sample_rate,
             input=True,
-            frames_per_buffer=self.chunk_size
+            frames_per_buffer=self.chunk_size,
+            stream_callback=None  # Blocking mode but with error handling
         )
-        
+
+        # Store stream so stop_recording() can close it
+        self.current_stream = stream
+
         frames = []
         start_time = time.time()
-        
-        while self.is_recording and (time.time() - start_time) < max_duration:
-            try:
-                data = stream.read(self.chunk_size, exception_on_overflow=False)
-                frames.append(data)
-                
-                # Progress callback
-                if progress_callback:
-                    elapsed = time.time() - start_time
-                    progress_callback(elapsed)
-                
-                # Check stop signal more frequently for better responsiveness
-                if not self.is_recording:
+
+        try:
+            while self.is_recording and (time.time() - start_time) < max_duration:
+                try:
+                    # Read with timeout by checking available frames first
+                    available_frames = stream.get_read_available()
+
+                    if available_frames >= self.chunk_size:
+                        # Read full chunk if available
+                        data = stream.read(self.chunk_size, exception_on_overflow=False)
+                        frames.append(data)
+
+                        # Progress callback with audio level
+                        if progress_callback:
+                            elapsed = time.time() - start_time
+                            # Calculate audio level (RMS) for real-time feedback
+                            audio_level = self._calculate_rms(data)
+                            progress_callback(elapsed, audio_level)
+                    else:
+                        # Small sleep to avoid busy waiting
+                        time.sleep(0.01)
+                        continue
+
+                except OSError as e:
+                    # Stream closed or device error - exit cleanly
+                    self.logger.info(f"Stream closed: {e}")
                     break
-                    
+                except Exception as e:
+                    self.logger.warning(f"Audio read error: {e}")
+                    break
+        finally:
+            # Always clean up the stream
+            try:
+                if stream.is_active():
+                    stream.stop_stream()
+                stream.close()
+                self.logger.info("Stream closed successfully")
             except Exception as e:
-                self.logger.warning(f"Audio read error: {e}")
-                break
-        
-        stream.stop_stream()
-        stream.close()
-        
+                self.logger.warning(f"Error closing stream: {e}")
+            self.current_stream = None
+
         if not frames:
             raise Exception("No audio frames captured")
-        
+
         # Save to file
         with wave.open(temp_file, 'wb') as wf:
             wf.setnchannels(self.channels)

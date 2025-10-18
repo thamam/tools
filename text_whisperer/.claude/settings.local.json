@@ -11,5 +11,6 @@
       "Bash(alias vt-status=\"/home/thh3/personal/tools/text_whisperer/voice_transcription_manager.sh --status\")"
     ],
     "deny": []
-  }
+  },
+  "outputStyle": "Explanatory"
 }

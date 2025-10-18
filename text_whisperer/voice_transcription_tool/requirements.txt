@@ -1,7 +1,9 @@
 # System Dependencies (install via package manager)
 # FFmpeg is REQUIRED for audio processing with Whisper
-# Ubuntu/Debian: sudo apt install ffmpeg
-# CentOS/RHEL: sudo yum install ffmpeg
+# xclip is REQUIRED for clipboard functionality on Linux
+# xdotool is REQUIRED for auto-paste functionality on Linux
+# Ubuntu/Debian: sudo apt install ffmpeg xclip xdotool
+# CentOS/RHEL: sudo yum install ffmpeg xclip xdotool
 # macOS: brew install ffmpeg
 # Windows: Download from https://ffmpeg.org/download.html
 
@@ -25,13 +27,11 @@ requests>=2.25.0
 # Audio feedback (currently used)
 pygame>=2.0.0  # For audio playback and feedback sounds
 
-# System tray functionality (currently used)
-pystray>=0.19.0  # For system tray functionality
-pillow>=8.0.0   # For system tray icons
-
-# Cross-platform clipboard paste (optional but recommended)
-pyautogui>=0.9.50  # For cross-platform auto-paste fallback
+# Resource monitoring (optional but recommended)
 psutil>=5.9.0  # For resource monitoring
+
+# Note: pyautogui removed due to Qt threading conflicts
+# Use xdotool on Linux instead: sudo apt install xdotool
 
 # Optional dependencies for wake word detection
 # openwakeword>=0.6.0  # For wake word detection

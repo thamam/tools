@@ -199,11 +199,12 @@ class TestAudioRecorder:
         # Mock the recording in a way that doesn't block
         with patch.object(recorder, '_record_pyaudio') as mock_record:
             mock_record.return_value = None
-            
+
             # Test that we can call start_recording without blocking
             result = recorder.start_recording(max_duration=1.0)
-            # Should return a string (file path) or None
-            assert result is None or isinstance(result, str)
+            # Should return a dict with success/error info
+            assert isinstance(result, dict)
+            assert 'success' in result
     
     def test_stop_recording_when_not_recording(self):
         """Test stopping recording when not currently recording."""

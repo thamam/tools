@@ -79,19 +79,14 @@ def parse_args():
         description="Voice Transcription Tool - Speech-to-text with global hotkeys"
     )
     parser.add_argument(
-        "--minimized", 
+        "--minimized",
         action="store_true",
-        help="Start minimized to system tray"
+        help="Start minimized (hidden window)"
     )
     parser.add_argument(
-        "--debug", 
+        "--debug",
         action="store_true",
         help="Enable debug logging"
-    )
-    parser.add_argument(
-        "--no-tray", 
-        action="store_true",
-        help="Disable system tray"
     )
     return parser.parse_args()
 
@@ -126,25 +121,52 @@ def main():
         if args.debug:
             logger.info("Debug mode enabled")
         if args.minimized:
-            logger.info("Starting minimized to system tray")
-        if args.no_tray:
-            logger.info("System tray disabled")
+            logger.info("Starting minimized")
         
         # Check dependencies
-        missing_deps = check_dependencies()
-        if missing_deps:
-            print("Missing required dependencies:")
-            for dep, message in missing_deps.items():
-                print(f"  • {dep}: {message}")
-            print("\nPlease install missing dependencies:")
-            print("  pip install -r requirements.txt")
+        critical_missing, optional_missing, warnings_list = check_dependencies()
+
+        # Show warnings (non-blocking)
+        if warnings_list:
+            print("\n⚠️  Warnings:")
+            for warning in warnings_list:
+                print(f"  • {warning}")
+            logger.warning(f"Dependency warnings: {', '.join(warnings_list)}")
+
+        # Show optional dependencies (non-blocking)
+        if optional_missing:
+            print("\n⚠️  Optional dependencies missing (reduced functionality):")
+            for dep, info in optional_missing.items():
+                print(f"\n  {dep}:")
+                print(f"    Reason: {info['reason']}")
+                print(f"    Install: {info['install']}")
+                print(f"    Impact: {info['impact']}")
+            logger.warning(f"Optional dependencies missing: {', '.join(optional_missing.keys())}")
+            print("\n  The application will continue with reduced functionality.")
+            print("  Press Enter to continue...")
+            input()
+
+        # Check critical dependencies (blocking)
+        if critical_missing:
+            print("\n❌ Missing required dependencies:\n")
+            for dep, info in critical_missing.items():
+                print(f"  {dep}:")
+                print(f"    Reason: {info['reason']}")
+                print(f"    Install: {info['install']}")
+                print()
+
+            print("Please install missing dependencies:")
+            print("  Quick install: pip install -r requirements.txt")
+            print("\nOr install individually:")
+            for dep, info in critical_missing.items():
+                print(f"  {info['install']}")
+
             return 1
         
         # Start the application
         logger.info("Starting modular voice transcription application")
         app_instance = VoiceTranscriptionApp(
-            start_minimized=args.minimized,
-            enable_tray=not args.no_tray
+            start_minimized=args.minimized
         )
         app_instance.run()
         
@@ -160,47 +182,103 @@ def main():
 
 
 def check_dependencies():
-    """Check for required dependencies."""
-    missing = {}
-    
+    """
+    Check for required dependencies with clear installation instructions.
+
+    Returns:
+        Tuple of (critical_missing, optional_missing, warnings)
+    """
+    critical_missing = {}  # Must have to run
+    optional_missing = {}  # Can run without, but with reduced functionality
+    warnings = []  # Non-blocking warnings
+
+    # Critical: Tkinter (GUI)
     try:
         import tkinter
     except ImportError:
-        missing['tkinter'] = 'GUI library (usually included with Python)'
-    
+        critical_missing['tkinter'] = {
+            'reason': 'GUI library required',
+            'install': 'Usually included with Python. Try: sudo apt install python3-tk'
+        }
+
+    # Critical: pynput (hotkeys)
     try:
         import pynput
     except ImportError:
-        missing['pynput'] = 'pip install pynput'
-        
+        critical_missing['pynput'] = {
+            'reason': 'Required for global hotkeys',
+            'install': 'pip install pynput'
+        }
+
+    # Critical: pyperclip (clipboard)
     try:
         import pyperclip
     except ImportError:
-        missing['pyperclip'] = 'pip install pyperclip'
-    
+        critical_missing['pyperclip'] = {
+            'reason': 'Required for clipboard operations',
+            'install': 'pip install pyperclip'
+        }
+
+    # Critical: pyaudio (recording)
     try:
         import pyaudio
     except ImportError:
-        missing['pyaudio'] = 'pip install pyaudio'
-    
-    # Check for at least one speech engine
-    has_speech_engine = False
+        critical_missing['pyaudio'] = {
+            'reason': 'Required for audio recording',
+            'install': 'pip install pyaudio'
+        }
+
+    # Critical: At least one speech engine
+    has_whisper = False
+    has_google = False
+
     try:
         import whisper
-        has_speech_engine = True
+        has_whisper = True
     except ImportError:
         pass
-        
+
     try:
         import speech_recognition
-        has_speech_engine = True
+        has_google = True
     except ImportError:
         pass
-        
-    if not has_speech_engine:
-        missing['speech_engine'] = 'pip install openai-whisper OR pip install SpeechRecognition'
-    
-    return missing
+
+    if not has_whisper and not has_google:
+        critical_missing['speech_engine'] = {
+            'reason': 'At least one speech recognition engine required',
+            'install': 'pip install openai-whisper  OR  pip install SpeechRecognition'
+        }
+    elif not has_whisper:
+        warnings.append("Whisper not available - using Google Speech only (requires internet)")
+    elif not has_google:
+        warnings.append("Google Speech not available - using Whisper only (slower)")
+
+    # Optional: FFmpeg (for Whisper)
+    if has_whisper:
+        try:
+            import subprocess
+            subprocess.run(['ffmpeg', '-version'], capture_output=True, check=True)
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            optional_missing['ffmpeg'] = {
+                'reason': 'Required for Whisper speech engine',
+                'install': 'sudo apt install ffmpeg',
+                'impact': 'Whisper will not work without FFmpeg'
+            }
+
+    # Optional: xdotool (for auto-paste on Linux)
+    if sys.platform == 'linux':
+        try:
+            import subprocess
+            subprocess.run(['which', 'xdotool'], capture_output=True, check=True)
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            optional_missing['xdotool'] = {
+                'reason': 'Required for auto-paste functionality',
+                'install': 'sudo apt install xdotool',
+                'impact': 'Auto-paste will be disabled (text still copied to clipboard)'
+            }
+
+    return critical_missing, optional_missing, warnings
 
 
 if __name__ == "__main__":
