@@ -204,7 +204,7 @@ Success Count:   ${SUCCESS_COUNT}
 Failure Count:   ${FAILURE_COUNT}
 Crash Count:     ${CRASH_COUNT}
 
-Success Rate:    $((SUCCESS_COUNT * 100 / (SUCCESS_COUNT + FAILURE_COUNT)))%
+Success Rate:    $(total_checks=$((SUCCESS_COUNT + FAILURE_COUNT)); if [ $total_checks -gt 0 ]; then echo "$((SUCCESS_COUNT * 100 / total_checks))%"; else echo "N/A"; fi)
 
 Verdict: $([ $CRASH_COUNT -eq 0 ] && echo "✅ PASS - No crashes detected" || echo "❌ FAIL - ${CRASH_COUNT} crashes detected")
 ======================================================================
