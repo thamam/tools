@@ -39,6 +39,8 @@ class TestStressCycles:
             recorder.rate = 16000
             recorder.channels = 1
             recorder.chunk_size = 1024
+            # Mock silence detection to always return False for stress tests
+            recorder._is_silent = Mock(return_value=False)
             yield recorder
 
     @pytest.fixture
@@ -271,6 +273,8 @@ class TestConcurrentOperations:
                     wf.writeframes(b'\x00\x01' * 100)
 
             recorder._record_pyaudio = create_dummy_audio
+            # Mock silence detection
+            recorder._is_silent = Mock(return_value=False)
             yield recorder
 
     def test_concurrent_start_attempts(self, recorder):
@@ -407,6 +411,8 @@ class TestErrorRecovery:
             recorder = AudioRecorder()
             recorder.p = Mock()
             recorder.audio_method = "pyaudio"
+            # Mock silence detection
+            recorder._is_silent = Mock(return_value=False)
             yield recorder
 
     def test_recovery_from_intermittent_failures(self, recorder):
