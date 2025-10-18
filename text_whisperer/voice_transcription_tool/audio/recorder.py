@@ -1,15 +1,8 @@
 """
 audio/recorder.py - Audio recording functionality for the Voice Transcription Tool.
 
-MIGRATION STEP 3A: Create this file
-
-TO MIGRATE from voice_transcription.py, copy these methods:
-- init_audio() → becomes _init_audio_method()
-- record_audio() → becomes start_recording()
-- record_with_pyaudio() → keep as is
-- record_with_arecord() → keep as is  
-- record_with_ffmpeg() → keep as is
-- test_microphone() → becomes test_recording()
+Handles audio capture using PyAudio with silence detection, multiple audio backend
+support (PyAudio/arecord/ffmpeg), and secure temporary file management.
 """
 
 import logging
@@ -50,11 +43,7 @@ class AudioRecorder:
         self._init_audio_method()
     
     def _init_audio_method(self) -> None:
-        """
-        Initialize the best available audio recording method.
-
-        MIGRATION: Copy the logic from your init_audio() method here.
-        """
+        """Initialize the best available audio recording method."""
         if PYAUDIO_AVAILABLE:
             try:
                 import pyaudio
@@ -152,11 +141,7 @@ class AudioRecorder:
             return False
     
     def test_recording(self, duration: float = 1.0, device_index: Optional[int] = None) -> bool:
-        """
-        Test audio recording functionality.
-        
-        MIGRATION: Copy logic from your test_microphone() method here.
-        """
+        """Test audio recording functionality."""
         self.logger.info(f"Testing audio recording (device: {device_index})...")
         
         try:
@@ -202,8 +187,6 @@ class AudioRecorder:
                        progress_callback: Optional[Callable[[float], None]] = None) -> Dict[str, Any]:
         """
         Start recording audio and return result with file path or error details.
-
-        MIGRATION: Copy logic from your record_audio() method here.
 
         Returns:
             Dict with keys:
@@ -304,8 +287,6 @@ class AudioRecorder:
         """
         Record using PyAudio.
 
-        MIGRATION: Copy logic from your record_with_pyaudio() method here.
-
         Args:
             temp_file: Path to save audio file
             max_duration: Maximum recording duration in seconds
@@ -377,11 +358,7 @@ class AudioRecorder:
             wf.writeframes(b''.join(frames))
     
     def _record_arecord(self, temp_file: str, max_duration: float) -> None:
-        """
-        Record using arecord.
-        
-        MIGRATION: Copy logic from your record_with_arecord() method here.
-        """
+        """Record using arecord."""
         cmd = [
             "arecord",
             "-f", "S16_LE",
@@ -401,11 +378,7 @@ class AudioRecorder:
             process.wait()
     
     def _record_ffmpeg(self, temp_file: str, max_duration: float) -> None:
-        """
-        Record using ffmpeg.
-        
-        MIGRATION: Copy logic from your record_with_ffmpeg() method here.
-        """
+        """Record using ffmpeg."""
         cmd = [
             "ffmpeg",
             "-f", "pulse",
@@ -445,7 +418,6 @@ class AudioRecorder:
                 pass
 
 
-# MIGRATION TEST: Test this module independently
 if __name__ == "__main__":
     import sys
     sys.path.append('..')

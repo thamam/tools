@@ -1,7 +1,7 @@
 """
 utils/logger.py - Logging utilities for the Voice Transcription Tool.
 
-MIGRATION STEP 2: Create this file first (no dependencies)
+Provides centralized logging configuration with file and console output.
 """
 
 import logging

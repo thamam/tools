@@ -1,12 +1,8 @@
 """
 audio/devices.py - Audio device management for the Voice Transcription Tool.
 
-MIGRATION STEP 3B: Create this file
-
-TO MIGRATE from voice_transcription.py, copy these methods:
-- list_audio_devices() → becomes _refresh_devices()
-- show_audio_devices() → becomes get_devices_info()
-- Any device testing logic
+Provides audio input device discovery, selection, and testing capabilities
+through PyAudio device enumeration.
 """
 
 import logging
@@ -28,11 +24,7 @@ class AudioDeviceManager:
         self._refresh_devices()
     
     def _refresh_devices(self) -> None:
-        """
-        Refresh the list of available audio devices.
-        
-        MIGRATION: Copy logic from your list_audio_devices() method here.
-        """
+        """Refresh the list of available audio devices."""
         self.devices.clear()
         
         if PYAUDIO_AVAILABLE:
@@ -64,11 +56,7 @@ class AudioDeviceManager:
         return self.devices.copy()
     
     def get_devices_info(self) -> List[str]:
-        """
-        Get formatted device information for display.
-        
-        MIGRATION: Copy logic from your show_audio_devices() method here.
-        """
+        """Get formatted device information for display."""
         info = []
         if self.devices:
             for device in self.devices:
@@ -161,7 +149,6 @@ class AudioDeviceManager:
         return len(self.devices)
 
 
-# MIGRATION TEST: Test this module independently
 if __name__ == "__main__":
     import sys
     sys.path.append('..')

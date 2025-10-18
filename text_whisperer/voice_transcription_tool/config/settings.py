@@ -1,7 +1,7 @@
 """
 config/settings.py - Configuration management for the Voice Transcription Tool.
 
-MIGRATION STEP 2B: Create this file second (only depends on basic Python)
+Manages JSON-based configuration with validation, defaults, and auto-save functionality.
 """
 
 import json
