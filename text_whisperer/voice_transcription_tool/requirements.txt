@@ -1,7 +1,9 @@
 # System Dependencies (install via package manager)
 # FFmpeg is REQUIRED for audio processing with Whisper
-# Ubuntu/Debian: sudo apt install ffmpeg
-# CentOS/RHEL: sudo yum install ffmpeg
+# xclip is REQUIRED for clipboard functionality on Linux
+# xdotool is REQUIRED for auto-paste functionality on Linux
+# Ubuntu/Debian: sudo apt install ffmpeg xclip xdotool
+# CentOS/RHEL: sudo yum install ffmpeg xclip xdotool
 # macOS: brew install ffmpeg
 # Windows: Download from https://ffmpeg.org/download.html
 
