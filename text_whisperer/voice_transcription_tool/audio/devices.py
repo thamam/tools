@@ -26,28 +26,43 @@ class AudioDeviceManager:
     def _refresh_devices(self) -> None:
         """Refresh the list of available audio devices."""
         self.devices.clear()
-        
+
         if PYAUDIO_AVAILABLE:
+            audio = None
             try:
                 audio = pyaudio.PyAudio()
                 device_count = audio.get_device_count()
-                
+
                 for i in range(device_count):
                     device_info = audio.get_device_info_by_index(i)
-                    if device_info['maxInputChannels'] > 0:  # Input device
+                    if device_info.get('maxInputChannels', 0) > 0:  # Input device
+                        # Map hostApi index to name for better UX
+                        api_index = device_info.get('hostApi')
+                        api_name = 'Unknown'
+                        try:
+                            if api_index is not None:
+                                api_name = audio.get_host_api_info_by_index(api_index).get('name', 'Unknown')
+                        except Exception:
+                            pass
+
                         self.devices.append({
                             'index': i,
-                            'name': device_info['name'],
-                            'channels': device_info['maxInputChannels'],
-                            'sample_rate': device_info['defaultSampleRate'],
-                            'api': device_info.get('hostApi', 'Unknown')
+                            'name': device_info.get('name', f'Device {i}'),
+                            'channels': device_info.get('maxInputChannels', 0),
+                            'sample_rate': device_info.get('defaultSampleRate', 16000),
+                            'api': api_name
                         })
-                
-                audio.terminate()
+
                 self.logger.info(f"Found {len(self.devices)} audio input devices")
-                
+
             except Exception as e:
                 self.logger.error(f"Failed to enumerate audio devices: {e}")
+            finally:
+                if audio is not None:
+                    try:
+                        audio.terminate()
+                    except Exception:
+                        pass
         else:
             self.logger.warning("PyAudio not available - cannot enumerate devices")
     
@@ -112,11 +127,13 @@ class AudioDeviceManager:
     def test_device(self, device_index: int) -> bool:
         """Test if a specific device is working."""
         if not PYAUDIO_AVAILABLE:
-            return True  # Assume system devices work
-        
+            return False  # Cannot test without PyAudio
+
+        audio = None
+        stream = None
         try:
             audio = pyaudio.PyAudio()
-            
+
             # Try to open the device
             stream = audio.open(
                 format=pyaudio.paInt16,
@@ -126,19 +143,28 @@ class AudioDeviceManager:
                 input_device_index=device_index,
                 frames_per_buffer=1024
             )
-            
+
             # Read a small amount of data
             data = stream.read(1024, exception_on_overflow=False)
-            
-            stream.stop_stream()
-            stream.close()
-            audio.terminate()
-            
+
             return len(data) > 0
-            
+
         except Exception as e:
             self.logger.error(f"Device test failed for index {device_index}: {e}")
             return False
+        finally:
+            try:
+                if stream is not None:
+                    if stream.is_active():
+                        stream.stop_stream()
+                    stream.close()
+            except Exception:
+                pass
+            try:
+                if audio is not None:
+                    audio.terminate()
+            except Exception:
+                pass
     
     def refresh(self) -> None:
         """Refresh the device list."""

@@ -13,6 +13,7 @@ import time
 import threading
 import struct
 import math
+import shutil
 from typing import Optional, Callable, Dict, Any
 from pathlib import Path
 
@@ -76,24 +77,22 @@ class AudioRecorder:
                 self.logger.info("✅ Using arecord")
             elif self._command_exists("ffmpeg"):
                 self.audio_method = "ffmpeg"
-                self.logger.info("✅ Using ffmpeg")
+                self.logger.info("✅ Using ffmpeg (Pulse/ALSA)")
         elif system == "darwin":
-            self.audio_method = "afplay"
-            self.logger.info("✅ Using macOS audio")
+            if self._command_exists("ffmpeg"):
+                self.audio_method = "ffmpeg"
+                self.logger.info("✅ Using ffmpeg (avfoundation)")
         elif system == "windows":
-            self.audio_method = "windows"
-            self.logger.info("✅ Using Windows audio")
-        
+            if self._command_exists("ffmpeg"):
+                self.audio_method = "ffmpeg"
+                self.logger.info("✅ Using ffmpeg (dshow)")
+
         if not self.audio_method:
             self.logger.error("❌ No audio recording method available")
     
     def _command_exists(self, command: str) -> bool:
         """Check if a command exists in PATH."""
-        try:
-            subprocess.run(["which", command], check=True, capture_output=True)
-            return True
-        except subprocess.CalledProcessError:
-            return False
+        return shutil.which(command) is not None
 
     def _calculate_rms(self, audio_data: bytes) -> float:
         """Calculate RMS (Root Mean Square) amplitude of audio data."""
@@ -378,11 +377,26 @@ class AudioRecorder:
             process.wait()
     
     def _record_ffmpeg(self, temp_file: str, max_duration: float) -> None:
-        """Record using ffmpeg."""
+        """Record using ffmpeg with OS-specific input format."""
+        system = platform.system().lower()
+
+        # OS-specific input configuration
+        if system == "linux":
+            # Prefer Pulse if available; else try ALSA default
+            input_args = ["-f", "pulse", "-i", "default"]
+        elif system == "darwin":
+            # Use default input device (:0)
+            input_args = ["-f", "avfoundation", "-i", ":0"]
+        elif system == "windows":
+            # Default DirectShow audio device
+            input_args = ["-f", "dshow", "-i", "audio=default"]
+        else:
+            # Fallback to pulse
+            input_args = ["-f", "pulse", "-i", "default"]
+
         cmd = [
             "ffmpeg",
-            "-f", "pulse",
-            "-i", "default",
+            *input_args,
             "-t", str(max_duration),
             "-acodec", "pcm_s16le",
             "-ar", str(self.sample_rate),
@@ -390,12 +404,12 @@ class AudioRecorder:
             "-y",
             temp_file
         ]
-        
+
         process = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        
+
         while self.is_recording and process.poll() is None:
             time.sleep(0.1)
-        
+
         if process.poll() is None:
             process.terminate()
             process.wait()

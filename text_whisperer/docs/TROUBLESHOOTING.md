@@ -149,10 +149,10 @@ python main.py --debug
    Edit `voice_transcription_config.json`:
    ```json
    {
-     "silence_threshold": 300.0,  // Lower = more sensitive (default: 500.0)
-     ...
+     "silence_threshold": 300.0
    }
    ```
+   Lower values = more sensitive (default: 500.0)
 
 4. **Test in Settings**:
    - Press Alt+S
@@ -205,11 +205,10 @@ python main.py --debug
    Edit `voice_transcription_config.json`:
    ```json
    {
-     "whisper_model": "small",  // Upgrade from "base" (default)
-     ...
+     "whisper_model": "small"
    }
    ```
-   Models by accuracy (higher = better but slower):
+   Upgrade from "base" (default). Models by accuracy (higher = better but slower):
    - tiny < base < **small** < medium < large
 
 3. **Improve recording quality**:
@@ -438,10 +437,10 @@ ps aux | grep python | grep main.py
 1. **Use smaller Whisper model**:
    ```json
    {
-     "whisper_model": "tiny",  // ~600MB instead of ~1.2GB
-     ...
+     "whisper_model": "tiny"
    }
    ```
+   Uses ~600MB instead of ~1.2GB (base model)
 
 2. **Switch to Google Speech**:
    - Press Alt+S
@@ -525,13 +524,13 @@ top -p $(pgrep -f "python.*main.py")
    ```json
    {
      "health_monitor": {
-       "memory_limit_mb": 1024,  // Lower from 2048
-       "cpu_limit_percent": 90,  // Lower from 98
-       "check_interval": 15       // Check more frequently
-     },
-     ...
+       "memory_limit_mb": 1024,
+       "cpu_limit_percent": 90,
+       "check_interval": 15
+     }
    }
    ```
+   Lower from defaults: memory 2048MB → 1024MB, CPU 98% → 90%, interval 30s → 15s
 
 2. **Use lighter speech engine**:
    - Switch to Google Speech (cloud-based, much lighter)

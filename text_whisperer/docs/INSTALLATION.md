@@ -185,10 +185,11 @@ Edit `voice_transcription_config.json` to change model size:
 
 ```json
 {
-  "whisper_model": "base",  // Options: tiny, base, small, medium, large
-  ...
+  "whisper_model": "base"
 }
 ```
+
+**Available Options**: tiny, base, small, medium, large
 
 Model size vs. accuracy tradeoff:
 - **tiny** (39M params): Fast, lower accuracy

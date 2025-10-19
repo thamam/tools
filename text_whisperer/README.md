@@ -60,18 +60,18 @@ This application has been hardened for production use through comprehensive test
 ### Testing Infrastructure
 
 ```bash
-# Run all tests (must be in voice_transcription_tool directory)
+# Run all tests (from voice_transcription_tool directory)
 cd voice_transcription_tool/
 python -m pytest tests/                    # All 114 tests
 python -m pytest tests/ -v --cov          # With coverage report
 python -m pytest -m stress                # Stress tests only
 
-# Memory leak detection
-python scripts/memory_leak_test.py --cycles 1000
-python scripts/memory_leak_test.py --duration 3600  # 1 hour
+# Memory leak detection (scripts are at repo root)
+python ../scripts/memory_leak_test.py --cycles 1000
+python ../scripts/memory_leak_test.py --duration 3600  # 1 hour
 
 # Multi-hour stability testing
-./scripts/stability_test.sh --duration 8  # 8-hour background test
+../scripts/stability_test.sh --duration 8  # 8-hour background test
 ```
 
 ## System Requirements

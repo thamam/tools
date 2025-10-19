@@ -6,7 +6,7 @@ and Google Speech (cloud) recognition engines with automatic fallback.
 """
 
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from abc import ABC, abstractmethod
 
 try:
@@ -255,7 +255,7 @@ class SpeechEngineManager:
         else:
             self.logger.warning("No speech engines available!")
     
-    def get_available_engines(self) -> list[str]:
+    def get_available_engines(self) -> List[str]:
         """Get list of available engine names."""
         return list(self.engines.keys())
     
