@@ -1,15 +1,8 @@
 """
 audio/recorder.py - Audio recording functionality for the Voice Transcription Tool.
 
-MIGRATION STEP 3A: Create this file
-
-TO MIGRATE from voice_transcription.py, copy these methods:
-- init_audio() → becomes _init_audio_method()
-- record_audio() → becomes start_recording()
-- record_with_pyaudio() → keep as is
-- record_with_arecord() → keep as is  
-- record_with_ffmpeg() → keep as is
-- test_microphone() → becomes test_recording()
+Handles audio capture using PyAudio with silence detection, multiple audio backend
+support (PyAudio/arecord/ffmpeg), and secure temporary file management.
 """
 
 import logging
@@ -20,6 +13,7 @@ import time
 import threading
 import struct
 import math
+import shutil
 from typing import Optional, Callable, Dict, Any
 from pathlib import Path
 
@@ -50,11 +44,7 @@ class AudioRecorder:
         self._init_audio_method()
     
     def _init_audio_method(self) -> None:
-        """
-        Initialize the best available audio recording method.
-
-        MIGRATION: Copy the logic from your init_audio() method here.
-        """
+        """Initialize the best available audio recording method."""
         if PYAUDIO_AVAILABLE:
             try:
                 import pyaudio
@@ -87,24 +77,22 @@ class AudioRecorder:
                 self.logger.info("✅ Using arecord")
             elif self._command_exists("ffmpeg"):
                 self.audio_method = "ffmpeg"
-                self.logger.info("✅ Using ffmpeg")
+                self.logger.info("✅ Using ffmpeg (Pulse/ALSA)")
         elif system == "darwin":
-            self.audio_method = "afplay"
-            self.logger.info("✅ Using macOS audio")
+            if self._command_exists("ffmpeg"):
+                self.audio_method = "ffmpeg"
+                self.logger.info("✅ Using ffmpeg (avfoundation)")
         elif system == "windows":
-            self.audio_method = "windows"
-            self.logger.info("✅ Using Windows audio")
-        
+            if self._command_exists("ffmpeg"):
+                self.audio_method = "ffmpeg"
+                self.logger.info("✅ Using ffmpeg (dshow)")
+
         if not self.audio_method:
             self.logger.error("❌ No audio recording method available")
     
     def _command_exists(self, command: str) -> bool:
         """Check if a command exists in PATH."""
-        try:
-            subprocess.run(["which", command], check=True, capture_output=True)
-            return True
-        except subprocess.CalledProcessError:
-            return False
+        return shutil.which(command) is not None
 
     def _calculate_rms(self, audio_data: bytes) -> float:
         """Calculate RMS (Root Mean Square) amplitude of audio data."""
@@ -152,11 +140,7 @@ class AudioRecorder:
             return False
     
     def test_recording(self, duration: float = 1.0, device_index: Optional[int] = None) -> bool:
-        """
-        Test audio recording functionality.
-        
-        MIGRATION: Copy logic from your test_microphone() method here.
-        """
+        """Test audio recording functionality."""
         self.logger.info(f"Testing audio recording (device: {device_index})...")
         
         try:
@@ -202,8 +186,6 @@ class AudioRecorder:
                        progress_callback: Optional[Callable[[float], None]] = None) -> Dict[str, Any]:
         """
         Start recording audio and return result with file path or error details.
-
-        MIGRATION: Copy logic from your record_audio() method here.
 
         Returns:
             Dict with keys:
@@ -304,8 +286,6 @@ class AudioRecorder:
         """
         Record using PyAudio.
 
-        MIGRATION: Copy logic from your record_with_pyaudio() method here.
-
         Args:
             temp_file: Path to save audio file
             max_duration: Maximum recording duration in seconds
@@ -377,11 +357,7 @@ class AudioRecorder:
             wf.writeframes(b''.join(frames))
     
     def _record_arecord(self, temp_file: str, max_duration: float) -> None:
-        """
-        Record using arecord.
-        
-        MIGRATION: Copy logic from your record_with_arecord() method here.
-        """
+        """Record using arecord."""
         cmd = [
             "arecord",
             "-f", "S16_LE",
@@ -401,15 +377,26 @@ class AudioRecorder:
             process.wait()
     
     def _record_ffmpeg(self, temp_file: str, max_duration: float) -> None:
-        """
-        Record using ffmpeg.
-        
-        MIGRATION: Copy logic from your record_with_ffmpeg() method here.
-        """
+        """Record using ffmpeg with OS-specific input format."""
+        system = platform.system().lower()
+
+        # OS-specific input configuration
+        if system == "linux":
+            # Prefer Pulse if available; else try ALSA default
+            input_args = ["-f", "pulse", "-i", "default"]
+        elif system == "darwin":
+            # Use default input device (:0)
+            input_args = ["-f", "avfoundation", "-i", ":0"]
+        elif system == "windows":
+            # Default DirectShow audio device
+            input_args = ["-f", "dshow", "-i", "audio=default"]
+        else:
+            # Fallback to pulse
+            input_args = ["-f", "pulse", "-i", "default"]
+
         cmd = [
             "ffmpeg",
-            "-f", "pulse",
-            "-i", "default",
+            *input_args,
             "-t", str(max_duration),
             "-acodec", "pcm_s16le",
             "-ar", str(self.sample_rate),
@@ -417,12 +404,12 @@ class AudioRecorder:
             "-y",
             temp_file
         ]
-        
+
         process = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        
+
         while self.is_recording and process.poll() is None:
             time.sleep(0.1)
-        
+
         if process.poll() is None:
             process.terminate()
             process.wait()
@@ -445,7 +432,6 @@ class AudioRecorder:
                 pass
 
 
-# MIGRATION TEST: Test this module independently
 if __name__ == "__main__":
     import sys
     sys.path.append('..')

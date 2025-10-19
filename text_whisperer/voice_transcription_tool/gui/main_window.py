@@ -1,14 +1,8 @@
 """
 gui/main_window.py - Main application window for the Voice Transcription Tool.
 
-MIGRATION STEP 6A: Create this file - THE BIG ONE!
-
-TO MIGRATE from voice_transcription.py, copy these methods:
-- create_gui() → becomes _create_gui()
-- All GUI creation methods (create_title, create_status_panel, etc.)
-- All event handlers (toggle_recording, copy_to_clipboard, etc.)
-- All UI update methods (update_transcription_display, etc.)
-- Background thread management
+Implements the main Tkinter GUI with modular integration of audio, speech,
+hotkey, and configuration managers.
 """
 
 import tkinter as tk
@@ -38,10 +32,10 @@ except ImportError:
 
 class VoiceTranscriptionApp:
     """
-    Main application class - replaces the monolithic VoiceTranscriptionTool.
-    
-    MIGRATION: This replaces your entire VoiceTranscriptionTool class but uses
-    modular components instead of having everything in one class.
+    Main application class coordinating all modular components.
+
+    Integrates audio recording, speech recognition, hotkeys, auto-paste,
+    and health monitoring through a clean manager-based architecture.
     """
     
     def __init__(self, start_minimized: bool = False):

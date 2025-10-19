@@ -1,16 +1,12 @@
 """
 speech/engines.py - Speech recognition engines for the Voice Transcription Tool.
 
-MIGRATION STEP 4A: Create this file
-
-TO MIGRATE from voice_transcription.py, copy these methods:
-- init_speech_engine() → becomes SpeechEngineManager.__init__()
-- transcribe_audio() → becomes SpeechEngineManager.transcribe()
-- All Whisper and Google Speech logic
+Provides abstract base class and concrete implementations for Whisper (local)
+and Google Speech (cloud) recognition engines with automatic fallback.
 """
 
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from abc import ABC, abstractmethod
 
 try:
@@ -59,11 +55,7 @@ class WhisperEngine(SpeechEngine):
         self._load_model()
     
     def _load_model(self) -> None:
-        """
-        Load the Whisper model.
-        
-        MIGRATION: Copy logic from your init_speech_engine() method for Whisper.
-        """
+        """Load the Whisper model."""
         if not WHISPER_AVAILABLE:
             self.logger.error("Whisper not available")
             return
@@ -76,11 +68,7 @@ class WhisperEngine(SpeechEngine):
             self.logger.error(f"Failed to load Whisper model: {e}")
     
     def transcribe(self, audio_file: str) -> Dict[str, Any]:
-        """
-        Transcribe audio using Whisper with optimizations for short clips.
-
-        MIGRATION: Copy logic from your transcribe_audio() method for Whisper.
-        """
+        """Transcribe audio using Whisper with optimizations for short clips."""
         if not self.model:
             return {
                 'text': '',
@@ -156,11 +144,7 @@ class GoogleSpeechEngine(SpeechEngine):
         self._init_recognizer()
     
     def _init_recognizer(self) -> None:
-        """
-        Initialize the speech recognizer.
-        
-        MIGRATION: Copy logic from your init_speech_engine() method for Google Speech.
-        """
+        """Initialize the speech recognizer."""
         if not SPEECH_RECOGNITION_AVAILABLE:
             self.logger.error("SpeechRecognition library not available")
             return
@@ -172,11 +156,7 @@ class GoogleSpeechEngine(SpeechEngine):
             self.logger.error(f"Failed to initialize Google Speech Recognition: {e}")
     
     def transcribe(self, audio_file: str) -> Dict[str, Any]:
-        """
-        Transcribe audio using Google Speech Recognition.
-
-        MIGRATION: Copy logic from your transcribe_audio() method for Google Speech.
-        """
+        """Transcribe audio using Google Speech Recognition."""
         if not self.recognizer:
             return {
                 'text': '',
@@ -243,11 +223,7 @@ class GoogleSpeechEngine(SpeechEngine):
 
 
 class SpeechEngineManager:
-    """
-    Manages multiple speech recognition engines.
-    
-    MIGRATION: This replaces the speech engine logic in your main class.
-    """
+    """Manages multiple speech recognition engines with automatic fallback."""
     
     def __init__(self):
         self.logger = logging.getLogger(__name__)
@@ -256,11 +232,7 @@ class SpeechEngineManager:
         self._init_engines()
     
     def _init_engines(self) -> None:
-        """
-        Initialize all available engines.
-        
-        MIGRATION: Copy logic from your init_speech_engine() method here.
-        """
+        """Initialize all available speech recognition engines."""
         # Initialize Whisper
         whisper_engine = WhisperEngine()
         if whisper_engine.is_available():
@@ -283,16 +255,12 @@ class SpeechEngineManager:
         else:
             self.logger.warning("No speech engines available!")
     
-    def get_available_engines(self) -> list[str]:
+    def get_available_engines(self) -> List[str]:
         """Get list of available engine names."""
         return list(self.engines.keys())
     
     def set_engine(self, engine_name: str) -> bool:
-        """
-        Set the current speech engine.
-        
-        MIGRATION: This replaces the engine switching logic in your settings.
-        """
+        """Set the current speech engine."""
         if engine_name in self.engines:
             self.current_engine = engine_name
             self.logger.info(f"Speech engine set to: {engine_name}")
@@ -308,8 +276,6 @@ class SpeechEngineManager:
     def transcribe(self, audio_file: str, enable_fallback: bool = True) -> Dict[str, Any]:
         """
         Transcribe audio using the current engine with automatic fallback.
-
-        MIGRATION: This replaces your transcribe_audio() method.
 
         Args:
             audio_file: Path to audio file
@@ -405,7 +371,6 @@ class SpeechEngineManager:
         return info
 
 
-# MIGRATION TEST: Test this module independently
 if __name__ == "__main__":
     import sys
     sys.path.append('..')
