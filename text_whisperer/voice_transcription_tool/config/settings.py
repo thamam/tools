@@ -31,6 +31,8 @@ class ConfigManager:
             'window_width': 900,
             'window_height': 800,
             'record_seconds': 30,
+            # Feature defaults
+            'auto_paste_mode': True,  # Enable auto-paste by default
             # Health monitor defaults
             'health_memory_limit': 1024,  # MB
             'health_cpu_limit': 95,       # Percent

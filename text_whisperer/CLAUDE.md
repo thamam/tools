@@ -160,7 +160,7 @@ ConfigManager.load() → voice_transcription_config.json (with validation)
 - Audio: 16kHz, mono, 30s max recording
 - Engine: Whisper (local) preferred, Google Speech (cloud) fallback
 - Health Limits: 2048MB memory, 98% CPU, 30s check interval
-- Auto-paste: Disabled by default (can be enabled in settings)
+- Auto-paste: Enabled by default (can be disabled in settings)
 
 ## System Dependencies
 

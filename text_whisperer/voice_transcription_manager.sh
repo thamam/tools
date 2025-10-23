@@ -75,7 +75,8 @@ start_tool() {
         return 1
     fi
     
-    # Start the tool in background
+    # Start the tool in background (from project root to ensure config is found)
+    cd "$PROJECT_ROOT" || { echo "Error: Cannot change to project directory"; return 1; }
     nohup python "$PYTHON_SCRIPT" --minimized > "$LOG_FILE" 2>&1 &
     PID=$!
     
