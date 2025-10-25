@@ -1,0 +1,57 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Claude Code MCP Configuration",
+  "description": "Schema for .mcp.json - Model Context Protocol server configuration",
+  "type": "object",
+  "properties": {
+    "mcpServers": {
+      "type": "object",
+      "description": "Map of MCP server names to their configurations",
+      "patternProperties": {
+        "^[a-zA-Z0-9_-]+$": {
+          "type": "object",
+          "required": ["command"],
+          "properties": {
+            "command": {
+              "type": "string",
+              "description": "Command to execute (e.g., 'node', 'python', 'npx')"
+            },
+            "args": {
+              "type": "array",
+              "description": "Arguments to pass to the command",
+              "items": {
+                "type": "string"
+              }
+            },
+            "env": {
+              "type": "object",
+              "description": "Environment variables for the server process",
+              "patternProperties": {
+                "^[A-Z_][A-Z0-9_]*$": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            },
+            "disabled": {
+              "type": "boolean",
+              "description": "Whether this server is disabled",
+              "default": false
+            },
+            "alwaysAllow": {
+              "type": "array",
+              "description": "Tools to always allow without prompting",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": ["mcpServers"],
+  "additionalProperties": false
+}
