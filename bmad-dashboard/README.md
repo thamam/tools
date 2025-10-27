@@ -19,7 +19,7 @@ BMAD Dashboard provides real-time visualization of BMAD project state in a beaut
 
 ## 🎬 Demo
 
-```
+```text
 ╭─────────────────── BMAD Project Dashboard ────────────────────╮
 │ Project: MyApp          Phase: 4-Implementation               │
 │ Level: 3                Next: Continue drafting stories       │

@@ -8,6 +8,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 import time
 from datetime import datetime
 from pathlib import Path
@@ -25,6 +26,11 @@ try:
 except ImportError:
     print("Error: 'rich' library not found. Install with: pip install rich", file=sys.stderr)
     sys.exit(1)
+
+
+class BMADStateError(Exception):
+    """Custom exception for BMAD state reader errors."""
+    pass
 
 
 # Color mapping for activity heatmap
@@ -70,6 +76,10 @@ def get_state_reader_path() -> Path:
 def read_bmad_state(project_path: Optional[str] = None) -> Dict[str, Any]:
     """
     Call bmad-state-reader.py to get project state.
+
+    Raises:
+        BMADStateError: If state reader fails or returns invalid data
+        FileNotFoundError: If state reader tool is not found
     """
     tool_path = get_state_reader_path()
 
@@ -87,11 +97,11 @@ def read_bmad_state(project_path: Optional[str] = None) -> Dict[str, Any]:
 
         return json.loads(result.stdout)
     except subprocess.CalledProcessError as e:
-        return {"error": f"Failed to read state: {e.stderr}"}
+        raise BMADStateError(f"Failed to read state: {e.stderr}")
     except json.JSONDecodeError as e:
-        return {"error": f"Invalid JSON from state reader: {e}"}
+        raise BMADStateError(f"Invalid JSON from state reader: {e}")
     except Exception as e:
-        return {"error": str(e)}
+        raise BMADStateError(f"Unexpected error reading state: {e}")
 
 
 def build_story_tree(stories: Dict[str, List], console: Console) -> Tree:
@@ -294,7 +304,7 @@ def check_trigger_file(trigger_path: Path, last_check: float) -> bool:
     try:
         mtime = trigger_path.stat().st_mtime
         return mtime > last_check
-    except:
+    except OSError:
         return False
 
 
@@ -303,14 +313,25 @@ def run_dashboard(project_path: Optional[str] = None, poll_interval: float = 1.0
     Main dashboard loop with live updates.
     """
     console = Console()
-    trigger_path = Path("/tmp/bmad-dashboard-trigger")
+    # Use cross-platform temporary directory
+    trigger_path = Path(tempfile.gettempdir()) / "bmad-dashboard-trigger"
 
     # Create trigger file if it doesn't exist
     trigger_path.touch(exist_ok=True)
     last_trigger_check = time.time()
 
-    # Initial state load
-    state = read_bmad_state(project_path)
+    # Initial state load with error handling
+    try:
+        state = read_bmad_state(project_path)
+    except FileNotFoundError as e:
+        console.print(f"\n[bold red]Error:[/bold red] {e}")
+        console.print("\n[yellow]State reader tool not found.[/yellow]")
+        console.print("Please install the BMAD Dashboard:")
+        console.print("  cd bmad-dashboard && ./install.sh")
+        return
+    except BMADStateError as e:
+        console.print(f"\n[bold red]Error:[/bold red] {e}")
+        return
 
     with Live(build_dashboard(state, console), console=console, refresh_per_second=1) as live:
         try:
@@ -322,11 +343,14 @@ def run_dashboard(project_path: Optional[str] = None, poll_interval: float = 1.0
                 should_refresh = check_trigger_file(trigger_path, last_trigger_check)
 
                 if should_refresh:
-                    # Reload state
-                    state = read_bmad_state(project_path)
-
-                    # Update display
-                    live.update(build_dashboard(state, console))
+                    try:
+                        # Reload state
+                        state = read_bmad_state(project_path)
+                        # Update display
+                        live.update(build_dashboard(state, console))
+                    except (BMADStateError, FileNotFoundError):
+                        # Continue with last known state on errors during refresh
+                        pass
 
                     # Update last check time
                     last_trigger_check = current_time
@@ -343,10 +367,16 @@ def print_static_summary(project_path: Optional[str] = None):
 
     console.print("\n[bold cyan]BMAD Project Summary[/bold cyan]\n")
 
-    state = read_bmad_state(project_path)
-
-    if "error" in state:
-        console.print(f"[bold red]Error:[/bold red] {state['error']}")
+    try:
+        state = read_bmad_state(project_path)
+    except FileNotFoundError as e:
+        console.print(f"[bold red]Error:[/bold red] {e}")
+        console.print("\n[yellow]State reader tool not found.[/yellow]")
+        console.print("Please install the BMAD Dashboard:")
+        console.print("  cd bmad-dashboard && ./install.sh")
+        return
+    except BMADStateError as e:
+        console.print(f"[bold red]Error:[/bold red] {e}")
         return
 
     # Project info

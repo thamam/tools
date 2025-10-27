@@ -9,20 +9,22 @@
 #   $TOOL_STATUS - Status of the tool execution (success/error)
 #
 
-# Trigger file path
-TRIGGER_FILE="/tmp/bmad-dashboard-trigger"
+# Use cross-platform temporary directory
+# Fall back to /tmp if TMPDIR is not set
+TMPDIR="${TMPDIR:-/tmp}"
+TRIGGER_FILE="${TMPDIR}/bmad-dashboard-trigger"
 
 # Check if this was a BMAD-related command
 # Look for "/bmad:" in tool name or other BMAD indicators
-if [[ "$TOOL_NAME" == *"/bmad:"* ]] || \
-   [[ "$TOOL_NAME" == *"bmad"* ]] || \
-   [[ "$TOOL_NAME" == *"SlashCommand"* && "$CLAUDE_LAST_OUTPUT" == *"/bmad:"* ]]; then
+if [[ "$TOOL_NAME" == *"/bmad:"* || \
+      "$TOOL_NAME" == *"bmad"* || \
+      ( "$TOOL_NAME" == *"SlashCommand"* && "$CLAUDE_LAST_OUTPUT" == *"/bmad:"* ) ]]; then
 
     # Touch the trigger file to signal dashboard
     touch "$TRIGGER_FILE" 2>/dev/null
 
     # Optional: Log the trigger (uncomment for debugging)
-    # echo "[$(date)] BMAD command detected: $TOOL_NAME" >> /tmp/bmad-dashboard.log
+    # echo "[$(date)] BMAD command detected: $TOOL_NAME" >> "${TMPDIR}/bmad-dashboard.log"
 fi
 
 # Exit successfully (hooks should not block tool execution)
