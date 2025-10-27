@@ -118,7 +118,7 @@ def get_file_mtime(file_path: Path) -> Optional[float]:
     """Get file modification time as Unix timestamp."""
     try:
         return file_path.stat().st_mtime
-    except:
+    except OSError:
         return None
 
 
