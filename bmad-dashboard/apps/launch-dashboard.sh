@@ -17,11 +17,11 @@ fi
 
 # Detect terminal emulator and launch
 if command -v gnome-terminal &> /dev/null; then
-    gnome-terminal -- bash -c "'$DASHBOARD_PATH'; read -p 'Press Enter to close...'"
+    gnome-terminal -- bash -lc "$DASHBOARD_PATH; read -p 'Press Enter to close...'"
 elif command -v xterm &> /dev/null; then
-    xterm -e "'$DASHBOARD_PATH'" &
+    xterm -e "$DASHBOARD_PATH" &
 elif command -v konsole &> /dev/null; then
-    konsole -e "'$DASHBOARD_PATH'" &
+    konsole -e "$DASHBOARD_PATH" &
 elif command -v alacritty &> /dev/null; then
     alacritty -e "$DASHBOARD_PATH" &
 elif command -v kitty &> /dev/null; then

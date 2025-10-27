@@ -90,6 +90,15 @@ else
     echo -e "   ${YELLOW}⚠️${NC}  Rich library: NOT installed"
     echo ""
     echo -e "${YELLOW}📦 Installing rich library...${NC}"
+
+    # Check if pip is installed
+    if ! command -v pip &> /dev/null && ! command -v pip3 &> /dev/null; then
+        echo -e "   ${RED}❌${NC} pip not found. Please install pip."
+        echo "   For example, you can use: sudo apt-get install python3-pip"
+        echo "   Or on other systems: sudo yum install python3-pip"
+        exit 1
+    fi
+
     if pip install rich 2>/dev/null || pip3 install rich 2>/dev/null || pip install --user rich 2>/dev/null; then
         echo -e "   ${GREEN}✅${NC} Rich library installed successfully"
     else

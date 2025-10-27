@@ -97,11 +97,11 @@ def read_bmad_state(project_path: Optional[str] = None) -> Dict[str, Any]:
 
         return json.loads(result.stdout)
     except subprocess.CalledProcessError as e:
-        raise BMADStateError(f"Failed to read state: {e.stderr}")
+        raise BMADStateError(f"Failed to read state: {e.stderr}") from e
     except json.JSONDecodeError as e:
-        raise BMADStateError(f"Invalid JSON from state reader: {e}")
-    except Exception as e:
-        raise BMADStateError(f"Unexpected error reading state: {e}")
+        raise BMADStateError(f"Invalid JSON from state reader: {e}") from e
+    except OSError as e:
+        raise BMADStateError(f"OS error occurred: {e}") from e
 
 
 def build_story_tree(stories: Dict[str, List], console: Console) -> Tree:
