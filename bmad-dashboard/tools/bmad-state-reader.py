@@ -75,7 +75,7 @@ def parse_workflow_status(status_file: Path) -> Dict[str, Any]:
     if next_action_match:
         project["next_action"] = next_action_match.group(1).strip()
 
-    # Parse story states (BACKLOG, TODO, IN PROGRESS, DONE)
+    # Parse story states from Development Queue format
     stories = {
         "BACKLOG": [],
         "TODO": [],
@@ -83,30 +83,86 @@ def parse_workflow_status(status_file: Path) -> Dict[str, Any]:
         "DONE": []
     }
 
-    # Look for sections like "## BACKLOG", "## TODO", etc.
-    for state in stories.keys():
-        # Match section header and capture content until next ## or end
-        pattern = rf"##\s+{re.escape(state)}.*?\n(.*?)(?=\n##|\Z)"
-        match = re.search(pattern, content, re.DOTALL)
+    # Parse STORIES_SEQUENCE for BACKLOG (JSON array format)
+    sequence_match = re.search(r'STORIES_SEQUENCE:\s*(\[.*?\])', content)
+    if sequence_match:
+        try:
+            sequence = json.loads(sequence_match.group(1))
+            for story_id in sequence:
+                # These are in the backlog/queue
+                stories["BACKLOG"].append({
+                    "id": story_id,
+                    "title": story_id.replace("-", " ").title(),  # Placeholder title
+                    "file": f"stories/{story_id}.md",
+                    "state": "BACKLOG"
+                })
+        except:
+            pass
 
-        if match:
-            section_content = match.group(1)
-            # Parse story entries (format: - Story X.Y: Title (file: path/to/file.md))
-            story_pattern = r"-\s+Story\s+(\d+\.\d+):\s+(.+?)(?:\s+\(file:\s+(.+?)\))?$"
+    # Parse TODO_STORY and TODO_TITLE
+    todo_story_match = re.search(r'TODO_STORY:\s*(.+)', content)
+    todo_title_match = re.search(r'TODO_TITLE:\s*(.+)', content)
+    if todo_story_match:
+        story_id = todo_story_match.group(1).strip()
+        if story_id:  # Only if not empty
+            title = todo_title_match.group(1).strip() if todo_title_match else story_id
+            stories["TODO"].append({
+                "id": story_id,
+                "title": title,
+                "file": f"stories/{story_id}.md",
+                "state": "TODO"
+            })
+            # Remove from BACKLOG if it was there
+            stories["BACKLOG"] = [s for s in stories["BACKLOG"] if s["id"] != story_id]
 
-            for line in section_content.split("\n"):
-                story_match = re.match(story_pattern, line.strip())
-                if story_match:
-                    story_id = story_match.group(1)
-                    title = story_match.group(2).strip()
-                    file_path = story_match.group(3)
+    # Parse IN_PROGRESS_STORY and IN_PROGRESS_TITLE
+    progress_story_match = re.search(r'IN_PROGRESS_STORY:\s*(\S+)', content)
+    progress_title_match = re.search(r'IN_PROGRESS_TITLE:\s*(.+)', content)
+    if progress_story_match:
+        story_id = progress_story_match.group(1).strip()
+        # Check if it's not empty and not another field name
+        if story_id and not story_id.endswith(':'):
+            title = progress_title_match.group(1).strip() if progress_title_match else story_id
+            # Also check title is not empty or another field
+            if title and not title.startswith('STORIES_') and not title.endswith(':'):
+                stories["IN PROGRESS"].append({
+                    "id": story_id,
+                    "title": title,
+                    "file": f"stories/{story_id}.md",
+                    "state": "IN PROGRESS"
+                })
+                # Remove from BACKLOG if it was there
+                stories["BACKLOG"] = [s for s in stories["BACKLOG"] if s["id"] != story_id]
 
-                    stories[state].append({
-                        "id": story_id,
-                        "title": title,
-                        "file": file_path,
-                        "state": state
-                    })
+    # Parse STORIES_DONE (JSON array format)
+    done_match = re.search(r'STORIES_DONE:\s*(\[.*?\])', content)
+    if done_match:
+        try:
+            done_list = json.loads(done_match.group(1))
+            for story_id in done_list:
+                stories["DONE"].append({
+                    "id": story_id,
+                    "title": story_id.replace("-", " ").title(),
+                    "file": f"stories/{story_id}.md",
+                    "state": "DONE"
+                })
+        except:
+            pass
+
+    # Also parse completed stories from Story Backlog section
+    # Look for patterns like: "- Story X: Title ... ✅ COMPLETE"
+    backlog_pattern = r"-\s+Story\s+(\d+):\s+(.+?)\s+(?:\(\d+\s+points?\))?\s*-\s*✅\s*COMPLETE"
+    for match in re.finditer(backlog_pattern, content):
+        story_num = match.group(1)
+        title = match.group(2).strip()
+        # Don't add if already in DONE
+        if not any(s.get("id") == story_num for s in stories["DONE"]):
+            stories["DONE"].append({
+                "id": f"legacy-{story_num}",
+                "title": title,
+                "file": None,
+                "state": "DONE"
+            })
 
     return {
         "project": project,
@@ -150,42 +206,56 @@ def get_time_ago_category(mtime: Optional[float]) -> str:
 
 def find_story_files(project_root: Path) -> List[Dict[str, Any]]:
     """
-    Find all .story.md files and extract metadata.
+    Find all story files (*.story.md and story-*.md) and extract metadata.
     """
     story_files = []
 
-    # Search for *.story.md files
-    for story_file in project_root.rglob("*.story.md"):
-        try:
-            content = story_file.read_text()
+    # Search for both *.story.md and story-*.md files
+    patterns = ["*.story.md", "story-*.md"]
 
-            # Extract story number from filename (e.g., story-1.2-title.md)
-            filename = story_file.name
-            id_match = re.search(r"story[- ](\d+\.\d+)", filename, re.IGNORECASE)
-            story_id = id_match.group(1) if id_match else None
+    for pattern in patterns:
+        for story_file in project_root.rglob(pattern):
+            try:
+                content = story_file.read_text()
+                filename = story_file.name
 
-            # Extract title from first line
-            first_line = content.split("\n")[0] if content else ""
-            title_match = re.search(r"#\s+Story\s+[\d.]+:\s+(.+)", first_line)
-            title = title_match.group(1).strip() if title_match else filename
+                # Extract story ID from filename
+                # Try multiple patterns: story-1.2-title.md, story-comparison-tool-1.md, etc.
+                story_id = None
 
-            # Extract status
-            status_match = re.search(r"Status:\s*(\w+)", content)
-            status = status_match.group(1) if status_match else "unknown"
+                # Pattern 1: story-X.Y format
+                id_match = re.search(r"story[- ](\d+\.\d+)", filename, re.IGNORECASE)
+                if id_match:
+                    story_id = id_match.group(1)
+                else:
+                    # Pattern 2: story-{name}.md format (use filename without .md as ID)
+                    if filename.startswith("story-") and filename.endswith(".md"):
+                        story_id = filename[:-3]  # Remove .md extension
 
-            # Get modification time
-            mtime = get_file_mtime(story_file)
+                # Extract title from first line
+                first_line = content.split("\n")[0] if content else ""
+                title_match = re.search(r"#\s+(?:Story\s+[\d.]+:\s+)?(.+)", first_line)
+                title = title_match.group(1).strip() if title_match else filename
 
-            story_files.append({
-                "id": story_id,
-                "title": title,
-                "file": str(story_file.relative_to(project_root)),
-                "status": status,
-                "mtime": mtime,
-                "activity": get_time_ago_category(mtime)
-            })
-        except Exception as e:
-            print(f"Warning: Could not parse {story_file}: {e}", file=sys.stderr)
+                # Extract status
+                status_match = re.search(r"Status:\s*(\w+)", content, re.IGNORECASE)
+                status = status_match.group(1) if status_match else "unknown"
+
+                # Get modification time
+                mtime = get_file_mtime(story_file)
+
+                # Only add if we found a valid story ID
+                if story_id:
+                    story_files.append({
+                        "id": story_id,
+                        "title": title,
+                        "file": str(story_file.relative_to(project_root)),
+                        "status": status,
+                        "mtime": mtime,
+                        "activity": get_time_ago_category(mtime)
+                    })
+            except Exception as e:
+                print(f"Warning: Could not parse {story_file}: {e}", file=sys.stderr)
 
     return story_files
 
