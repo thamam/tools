@@ -339,7 +339,6 @@ def run_dashboard(project_path: Optional[str] = None, poll_interval: float = 1.0
                 time.sleep(poll_interval)
 
                 # Check if we should refresh
-                current_time = time.time()
                 should_refresh = check_trigger_file(trigger_path, last_trigger_check)
 
                 if should_refresh:
@@ -352,8 +351,8 @@ def run_dashboard(project_path: Optional[str] = None, poll_interval: float = 1.0
                         # Continue with last known state on errors during refresh
                         pass
 
-                    # Update last check time
-                    last_trigger_check = current_time
+                    # Update last check time AFTER processing with fresh timestamp
+                    last_trigger_check = time.time()
 
         except KeyboardInterrupt:
             console.print("\n[yellow]Dashboard stopped by user[/yellow]")

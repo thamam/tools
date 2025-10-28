@@ -23,8 +23,8 @@ if [[ "$TOOL_NAME" == *"/bmad:"* || \
     # Touch the trigger file to signal dashboard
     touch "$TRIGGER_FILE" 2>/dev/null
 
-    # Optional: Log the trigger (uncomment for debugging)
-    # echo "[$(date)] BMAD command detected: $TOOL_NAME" >> "${TMPDIR}/bmad-dashboard.log"
+    # Log the trigger for debugging
+    echo "[$(date)] BMAD command detected: $TOOL_NAME" >> "${TMPDIR}/bmad-dashboard.log"
 fi
 
 # Exit successfully (hooks should not block tool execution)

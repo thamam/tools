@@ -270,13 +270,16 @@ def find_artifacts(project_root: Path) -> List[Dict[str, Any]]:
     artifact_patterns = [
         ("PRD", "**/PRD.md"),
         ("Epics", "**/epics*.md"),
-        ("Architecture", "**/architecture.md"),
+        ("Architecture", "**/*architecture*.md"),  # More flexible pattern
         ("Tech Spec", "**/tech-spec*.md"),
         ("Game Design", "**/GDD.md"),
         ("Product Brief", "**/product-brief.md"),
         ("Game Brief", "**/game-brief.md"),
         ("Story Context", "**/*context*.xml"),
         ("Sprint Status", "**/sprint-status*.yaml"),
+        ("Completion Report", "**/*completion-report*.md"),  # New
+        ("Implementation Plan", "**/*implementation-plan*.md"),  # New
+        ("Planning Doc", "**/*plan*.md"),  # New
     ]
 
     for artifact_type, pattern in artifact_patterns:
