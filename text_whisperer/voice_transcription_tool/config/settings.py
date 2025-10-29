@@ -33,6 +33,9 @@ class ConfigManager:
             'record_seconds': 30,
             # Feature defaults
             'auto_paste_mode': True,  # Enable auto-paste by default
+            # GPU acceleration defaults (v2.1)
+            'force_cpu': False,  # Force CPU even if GPU available (for debugging)
+            'whisper_model_size': 'base',  # Model size: tiny/base/small/medium/large
             # Health monitor defaults
             'health_memory_limit': 1024,  # MB
             'health_cpu_limit': 95,       # Percent
@@ -97,11 +100,19 @@ class ConfigManager:
             validated['hotkey_combination'] = defaults['hotkey_combination']
 
         # Validate boolean values
-        bool_keys = ['auto_paste_mode', 'auto_copy_to_clipboard', 'audio_feedback_enabled']
+        bool_keys = ['auto_paste_mode', 'auto_copy_to_clipboard', 'audio_feedback_enabled', 'force_cpu']
         for key in bool_keys:
             if key in validated and not isinstance(validated[key], bool):
                 warnings.append(f"Invalid boolean value for {key}, using default: {defaults.get(key, False)}")
                 validated[key] = defaults.get(key, False)
+        
+        # Validate whisper model size
+        valid_model_sizes = ['tiny', 'base', 'small', 'medium', 'large']
+        if validated.get('whisper_model_size') not in valid_model_sizes:
+            warnings.append(
+                f"Invalid whisper_model_size '{validated.get('whisper_model_size')}', using default: {defaults['whisper_model_size']}"
+            )
+            validated['whisper_model_size'] = defaults['whisper_model_size']
 
         # Log all warnings
         for warning in warnings:

@@ -22,7 +22,7 @@ PROJECT_ROOT="$SCRIPT_DIR"
 LOCK_FILE="/tmp/voice_transcription.lock"
 LOG_DIR="$PROJECT_ROOT/logs"
 LOG_FILE="$LOG_DIR/voice_transcription_$(date +%Y%m%d_%H%M%S).log"
-VENV_PATH="$PROJECT_ROOT/.venv"
+VENV_PATH="$PROJECT_ROOT/venv"
 PYTHON_SCRIPT="$PROJECT_ROOT/main.py"
 
 # Ensure log directory exists
