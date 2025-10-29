@@ -164,7 +164,7 @@ voice_transcription_tool/    # Core application code
 ├── gui/                     # User interface
 ├── utils/                   # Hotkeys, auto-paste, health monitoring
 ├── config/                  # Configuration management
-├── tests/                   # Test suite (114 tests)
+├── tests/                   # Test suite (121 tests, 74% coverage)
 └── scripts/                 # Stability and memory leak testing
 
 docs/                        # Documentation

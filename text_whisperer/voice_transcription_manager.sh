@@ -84,6 +84,8 @@ start_tool() {
     sleep 2
     
     if kill -0 "$PID" 2>/dev/null; then
+        # Write PID to lock file
+        echo "$PID" > "$LOCK_FILE"
         echo "Voice transcription tool started successfully (PID: $PID)"
         echo "Log file: $LOG_FILE"
         return 0

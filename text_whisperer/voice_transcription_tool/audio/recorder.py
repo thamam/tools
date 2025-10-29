@@ -120,19 +120,21 @@ class AudioRecorder:
     
     def _calculate_rms_throttled(self, audio_data: bytes) -> float:
         """Calculate RMS with 100ms throttling (10Hz updates) for performance.
-        
+
+        Uses monotonic clock to avoid issues with NTP/clock adjustments.
+
         Args:
             audio_data: Audio data bytes
-            
+
         Returns:
             RMS value (cached if called within throttle interval)
         """
-        current_time = time.time()
-        
+        current_time = time.monotonic()
+
         # Only recalculate every 100ms (10Hz)
         if current_time - self._last_rms_time < self._rms_update_interval:
             return self._rms_cache
-        
+
         # Calculate new RMS
         self._rms_cache = self._calculate_rms(audio_data)
         self._last_rms_time = current_time

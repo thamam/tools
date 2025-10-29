@@ -17,7 +17,7 @@ pyaudio>=0.2.14
 
 # Speech recognition engines (at least one required)
 openai-whisper>=20231117
-faster-whisper>=0.10.0  # CTranslate2-optimized Whisper (4x faster)
+faster-whisper>=0.10.0,<1.0  # CTranslate2-optimized Whisper (4x faster); v1.0+ requires cuDNN9-only CTranslate2 builds
 SpeechRecognition>=3.10.0
 
 # Additional dependencies
