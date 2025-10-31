@@ -12,9 +12,23 @@ from typing import Dict, Any, Optional
 
 
 class ConfigManager:
-    """Manages application configuration."""
-    
+    """Manages application configuration.
+
+    Configuration file location:
+        The config_file path is relative to the application's working directory.
+        When launched via voice_transcription_manager.sh, the working directory is:
+            /path/to/tools-text-whisperer/text_whisperer/
+
+        Therefore, the default config file resolves to:
+            text_whisperer/voice_transcription_config.json
+
+        This is the ONLY config file used by the application. The package-level
+        config (voice_transcription_tool/voice_transcription_config.json) has
+        been removed to avoid confusion.
+    """
+
     def __init__(self, config_file: str = "voice_transcription_config.json"):
+        # Config file path relative to working directory (text_whisperer/)
         self.config_file = Path(config_file)
         self.logger = logging.getLogger(__name__)
         self._config = self._load_defaults()
