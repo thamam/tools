@@ -6,7 +6,6 @@ import pytest
 import subprocess
 from unittest.mock import Mock, patch, MagicMock
 from utils.autopaste import AutoPasteManager
-from utils.system_tray import SystemTrayManager
 from utils.hotkeys import HotkeyManager
 from utils.logger import DebugMessageHandler
 

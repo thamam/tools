@@ -40,6 +40,11 @@ class AudioRecorder:
         self.audio_instance = None
         self.format = None
         self.current_stream = None  # Store current recording stream for cleanup
+        
+        # RMS caching for performance (P3.3 optimization)
+        self._rms_cache = 0.0
+        self._last_rms_time = 0.0
+        self._rms_update_interval = 0.1  # 100ms = 10Hz update rate
 
         self._init_audio_method()
     
@@ -112,6 +117,28 @@ class AudioRecorder:
         except Exception as e:
             self.logger.warning(f"Failed to calculate RMS: {e}")
             return 0.0
+    
+    def _calculate_rms_throttled(self, audio_data: bytes) -> float:
+        """Calculate RMS with 100ms throttling (10Hz updates) for performance.
+
+        Uses monotonic clock to avoid issues with NTP/clock adjustments.
+
+        Args:
+            audio_data: Audio data bytes
+
+        Returns:
+            RMS value (cached if called within throttle interval)
+        """
+        current_time = time.monotonic()
+
+        # Only recalculate every 100ms (10Hz)
+        if current_time - self._last_rms_time < self._rms_update_interval:
+            return self._rms_cache
+
+        # Calculate new RMS
+        self._rms_cache = self._calculate_rms(audio_data)
+        self._last_rms_time = current_time
+        return self._rms_cache
 
     def _is_silent(self, audio_file: str, threshold: float = 500.0) -> bool:
         """
@@ -320,8 +347,8 @@ class AudioRecorder:
                         # Progress callback with audio level
                         if progress_callback:
                             elapsed = time.time() - start_time
-                            # Calculate audio level (RMS) for real-time feedback
-                            audio_level = self._calculate_rms(data)
+                            # Calculate audio level (RMS) for real-time feedback (throttled)
+                            audio_level = self._calculate_rms_throttled(data)
                             progress_callback(elapsed, audio_level)
                     else:
                         # Small sleep to avoid busy waiting

@@ -22,7 +22,7 @@ PROJECT_ROOT="$SCRIPT_DIR"
 LOCK_FILE="/tmp/voice_transcription.lock"
 LOG_DIR="$PROJECT_ROOT/logs"
 LOG_FILE="$LOG_DIR/voice_transcription_$(date +%Y%m%d_%H%M%S).log"
-VENV_PATH="$PROJECT_ROOT/.venv"
+VENV_PATH="$PROJECT_ROOT/venv"
 PYTHON_SCRIPT="$PROJECT_ROOT/main.py"
 
 # Ensure log directory exists
@@ -84,6 +84,8 @@ start_tool() {
     sleep 2
     
     if kill -0 "$PID" 2>/dev/null; then
+        # Write PID to lock file
+        echo "$PID" > "$LOCK_FILE"
         echo "Voice transcription tool started successfully (PID: $PID)"
         echo "Log file: $LOG_FILE"
         return 0
