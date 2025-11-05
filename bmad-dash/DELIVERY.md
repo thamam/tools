@@ -52,24 +52,24 @@ Successfully delivered **BMAD Dashboard v0.1.0**, a terminal-based MVP for manag
 ### Installation
 
 ```bash
-# Extract the archive
-tar -xzf bmad-dash-v0.1.0.tar.gz
-cd bmad-dash
+# Clone from repository
+git clone https://github.com/thamam/tools.git
+cd tools/bmad-dash
 
-# Install dependencies
-pip3 install -r requirements.txt
+# Run installation script (creates isolated virtual environment)
+./install.sh
 
 # Run the demo
 ./demo.sh
 
 # Or launch interactive dashboard
-python3 bmad_dash.py --repos /path/to/your/bmad/repo
+./run.sh --repos /path/to/your/bmad/repo
 ```
 
 ### Health Check
 
 ```bash
-python3 bmad_dash.py check --repos /path/to/repo > health-report.json
+./run.sh check --repos /path/to/repo > health-report.json
 ```
 
 ## Test Results
@@ -124,11 +124,13 @@ bmad-dash/
 ├── bmad_dash.py          # Main implementation (514 LOC)
 ├── requirements.txt      # Python dependencies
 ├── setup.py              # Package configuration
+├── install.sh            # Installation script (creates venv)
+├── run.sh                # Convenience runner script
 ├── README.md             # User documentation
 ├── IMPLEMENTATION.md     # Technical summary
 ├── DELIVERY.md           # This file
 ├── demo.sh               # Demo script
-├── .gitignore            # Git ignore rules
+├── .gitignore            # Git ignore rules (includes venv/)
 └── tests/
     └── test_bmad_dash.py # Unit tests (13 tests)
 ```

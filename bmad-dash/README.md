@@ -33,25 +33,37 @@ The dashboard supports several keyboard shortcuts for common operations:
 
 ## Installation
 
-### Using pipx (Recommended)
+### Quick Install (Recommended)
+
+The easiest way to install is using the provided installation script, which creates an isolated virtual environment:
+
+```bash
+git clone https://github.com/thamam/tools.git
+cd tools/bmad-dash
+./install.sh
+```
+
+This will:
+- Create a virtual environment in `venv/`
+- Install all dependencies in isolation
+- Avoid conflicts with other Python packages
+
+### Manual Installation
+
+If you prefer to manage the virtual environment yourself:
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+### Using pipx (Alternative)
+
+For system-wide installation:
 
 ```bash
 pipx install bmad-dash
-```
-
-### Using pip
-
-```bash
-pip install -r requirements.txt
-```
-
-### From Source
-
-```bash
-git clone <repository-url>
-cd bmad-dash
-pip install -r requirements.txt
-chmod +x bmad_dash.py
 ```
 
 ## Usage
@@ -61,6 +73,11 @@ chmod +x bmad_dash.py
 Launch the interactive TUI to browse and manage your BMAD projects:
 
 ```bash
+# Using the convenience script (recommended)
+./run.sh --repos ~/projects/repo1 ~/projects/repo2
+
+# Or manually activate venv first
+source venv/bin/activate
 python bmad_dash.py --repos ~/projects/repo1 ~/projects/repo2
 ```
 
@@ -76,6 +93,11 @@ python bmad_dash.py
 Run a health check to get a JSON report of project issues:
 
 ```bash
+# Using the convenience script
+./run.sh check --repos ~/projects/repo1
+
+# Or with venv activated
+source venv/bin/activate
 python bmad_dash.py check --repos ~/projects/repo1
 ```
 
