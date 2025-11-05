@@ -147,10 +147,11 @@ class InteractivePrompter:
             True if confirmed, False otherwise
         """
         try:
-            return questionary.confirm(
+            ans = questionary.confirm(
                 message=message,
                 default=default
             ).ask()
+            return default if ans is None else bool(ans)
         except KeyboardInterrupt:
             return False
 

@@ -1,7 +1,7 @@
 """Data models for item selection and conflicts."""
 
 from dataclasses import dataclass, field
-from typing import List, Any
+from typing import List, Any, Optional
 from src.registry.models import RegistryItem
 
 
@@ -70,7 +70,7 @@ class Selection:
         """Check if selection is ready for installation (no conflicts)."""
         return not self.has_conflicts
 
-    def get_item_by_name(self, name: str) -> RegistryItem | None:
+    def get_item_by_name(self, name: str) -> Optional[RegistryItem]:
         """Find item by name in selection."""
         for item in self.all_items:
             if item.name == name:

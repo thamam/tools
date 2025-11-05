@@ -1,5 +1,6 @@
 """Data models for registry items and environment variables."""
 
+import re
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any
 from enum import Enum
@@ -29,7 +30,6 @@ class EnvVar:
 
     def __post_init__(self):
         """Validate environment variable name format."""
-        import re
         if not re.match(r'^[A-Z_][A-Z0-9_]*$', self.name):
             raise ValueError(
                 f"Invalid env var name '{self.name}'. "
@@ -68,8 +68,6 @@ class RegistryItem:
 
     def __post_init__(self):
         """Validate registry item constraints."""
-        import re
-
         # Validate name format
         if not re.match(r'^[a-z0-9-]+$', self.name):
             raise ValueError(

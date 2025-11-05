@@ -1,10 +1,11 @@
 """Data models and operations for lock files."""
 
 from dataclasses import dataclass, field
-from typing import Dict
+from typing import Dict, Optional
 from datetime import datetime
 from enum import Enum
 import re
+import hashlib
 
 
 class LockItemType(Enum):
@@ -49,8 +50,17 @@ class LockItem:
             self.type = LockItemType(self.type)
 
     def verify_file_hash(self, file_path: str, expected_hash: str) -> bool:
-        """Verify if file hash matches expected hash."""
-        return self.files.get(file_path) == expected_hash
+        """Compute the file's SHA-256 and compare to expected 'sha256:<hex>'."""
+        try:
+            h = hashlib.sha256()
+            with open(file_path, "rb") as f:
+                for chunk in iter(lambda: f.read(1024 * 1024), b""):
+                    h.update(chunk)
+            actual = f"sha256:{h.hexdigest()}"
+            # Normalize expected to lowercase for robustness
+            return actual == expected_hash.lower()
+        except FileNotFoundError:
+            return False
 
 
 @dataclass
@@ -100,7 +110,7 @@ class LockFile:
         """Add item to lock file."""
         self.items[name] = lock_item
 
-    def get_item(self, name: str) -> LockItem | None:
+    def get_item(self, name: str) -> Optional[LockItem]:
         """Get lock item by name."""
         return self.items.get(name)
 
