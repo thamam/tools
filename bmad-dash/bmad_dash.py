@@ -535,11 +535,18 @@ class BMADDashboard(App):
             self.selected_story = story
             
             editor = os.environ.get("EDITOR", "vim")
-            prd_file = story.path / "PRD.md"
-            if prd_file.exists():
-                self.notify(f"To open: {editor} {prd_file}")
+            
+            # Check if story.path is a file (file-based structure) or directory (directory-based)
+            if story.path.is_file():
+                # File-based story: open the story file itself
+                self.notify(f"To open: {editor} {story.path}")
             else:
-                self.notify(f"PRD.md not found for {story.name}")
+                # Directory-based story: look for PRD.md
+                prd_file = story.path / "PRD.md"
+                if prd_file.exists():
+                    self.notify(f"To open: {editor} {prd_file}")
+                else:
+                    self.notify(f"PRD.md not found for {story.name}")
     
     def action_tail_logs(self):
         """Tail live logs."""
@@ -548,11 +555,26 @@ class BMADDashboard(App):
             story = self.stories[table.cursor_row]
             self.selected_story = story
             
-            log_file = story.path / "logs" / "latest.log"
-            if log_file.exists():
-                self.notify(f"To tail: tail -f {log_file}")
+            # For file-based stories, logs might be in a different location
+            if story.path.is_file():
+                # Look for logs in parent directory or project logs directory
+                log_dir = story.path.parent.parent / "logs"
+                if log_dir.exists():
+                    # Look for story-specific log file
+                    log_file = log_dir / f"{story.path.stem}.log"
+                    if log_file.exists():
+                        self.notify(f"To tail: tail -f {log_file}")
+                    else:
+                        self.notify(f"No logs found for {story.name} in {log_dir}")
+                else:
+                    self.notify(f"No logs directory found for file-based story {story.name}")
             else:
-                self.notify(f"No logs found for {story.name}")
+                # Directory-based story: look for logs/latest.log
+                log_file = story.path / "logs" / "latest.log"
+                if log_file.exists():
+                    self.notify(f"To tail: tail -f {log_file}")
+                else:
+                    self.notify(f"No logs found for {story.name}")
     
     def action_search(self):
         """Search/filter stories."""
