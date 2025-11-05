@@ -25,6 +25,15 @@ from textual.screen import Screen
 
 console = Console()
 
+# Story status patterns to search for in markdown files
+STATUS_PATTERNS = {
+    "Done": r"(?i)status:\s*(done|completed|finished)",
+    "Review": r"(?i)status:\s*(review|reviewing|in\s*review)",
+    "Dev": r"(?i)status:\s*(dev|development|in\s*progress|wip)",
+    "Ready": r"(?i)status:\s*(ready|approved|to\s*do)",
+    "Draft": r"(?i)status:\s*(draft|planning|proposed)"
+}
+
 # State machine transitions
 STATE_TRANSITIONS = {
     "Draft": ["Ready"],
@@ -113,29 +122,47 @@ class BMADParser:
         return project if project.features else None
     
     def _find_features(self, base_path: Path) -> List[Path]:
-        """Find all feature directories."""
+        """Find all feature directories - supports both directory-based and file-based BMAD structures."""
         features = []
         
-        # Look for features/* pattern
+        # Strategy 1: Look for features/* pattern (original structure)
         features_dir = base_path / "features"
         if features_dir.exists() and features_dir.is_dir():
             for item in features_dir.iterdir():
                 if item.is_dir() and not item.name.startswith('.'):
                     features.append(item)
         
+        # Strategy 2: Look for docs/stories pattern (file-based structure)
+        docs_stories = base_path / "docs" / "stories"
+        if docs_stories.exists() and docs_stories.is_dir():
+            # Treat docs as a feature containing story files
+            features.append(base_path / "docs")
+        
         return features
     
     def _parse_feature(self, project_name: str, feature_path: Path, repo_path: Path) -> Optional[Feature]:
-        """Parse a single feature directory."""
+        """Parse a single feature directory - supports both directory and file-based stories."""
         feature_name = feature_path.name
         feature = Feature(name=feature_name, path=feature_path)
         
         # Look for stories directory
         stories_dir = feature_path / "stories"
         if stories_dir.exists():
-            for story_dir in stories_dir.iterdir():
-                if story_dir.is_dir() and not story_dir.name.startswith('.'):
-                    story = self._parse_story(project_name, feature_name, story_dir, repo_path)
+            # Check if stories are directories (original structure) or files (file-based structure)
+            story_items = list(stories_dir.iterdir())
+            
+            for item in story_items:
+                if item.name.startswith('.'):
+                    continue
+                    
+                if item.is_dir():
+                    # Directory-based story (original structure)
+                    story = self._parse_story(project_name, feature_name, item, repo_path)
+                    if story:
+                        feature.stories.append(story)
+                elif item.is_file() and item.suffix == '.md' and item.stem.startswith('story-'):
+                    # File-based story (new structure)
+                    story = self._parse_story_file(project_name, feature_name, item, repo_path)
                     if story:
                         feature.stories.append(story)
         
@@ -198,6 +225,103 @@ class BMADParser:
                 pass
         
         return story
+    def _parse_story_file(self, project_name: str, feature_name: str, story_file: Path, repo_path: Path) -> Optional[Story]:
+        """Parse a single story file (markdown-based structure)."""
+        try:
+            story_name = story_file.stem
+            content = story_file.read_text()
+            
+            # Extract status from content using patterns
+            state = self._extract_status_from_content(content)
+            
+            # Extract title
+            prd_title = self._extract_title_from_content(content)
+            
+            # Extract acceptance criteria
+            acceptance_criteria = self._extract_acceptance_criteria_from_content(content)
+            
+            story = Story(
+                project=project_name,
+                feature=feature_name,
+                name=story_name,
+                state=state,
+                path=story_file,
+                state_file=None,  # File-based stories don't have separate state files
+                owner="",  # Could extract from content if needed
+                prd_title=prd_title,
+                acceptance_criteria=acceptance_criteria
+            )
+            
+            # Check for related artifacts (context files, tests)
+            story.missing_artifacts = self._check_file_based_artifacts(story_file)
+            
+            # Get Git info
+            try:
+                repo = Repo(repo_path)
+                commits = list(repo.iter_commits(paths=str(story_file.relative_to(repo_path)), max_count=1))
+                if commits:
+                    story.last_commit_sha = commits[0].hexsha[:7]
+                    story.last_commit_time = datetime.fromtimestamp(commits[0].committed_date)
+            except (InvalidGitRepositoryError, Exception):
+                pass
+            
+            return story
+            
+        except Exception as e:
+            console.print(f"[yellow]Warning: Could not parse {story_file}: {e}[/yellow]")
+            return None
+    
+    def _extract_status_from_content(self, content: str) -> str:
+        """Extract status from story content using pattern matching."""
+        for status, pattern in STATUS_PATTERNS.items():
+            if re.search(pattern, content):
+                return status
+        return "Draft"
+    
+    def _extract_title_from_content(self, content: str) -> str:
+        """Extract title from story content."""
+        match = re.search(r'^#\s+(.+)$', content, re.MULTILINE)
+        if match:
+            title = match.group(1).strip()
+            # Remove "Story X.Y:" prefix if present
+            title = re.sub(r'^Story\s+[\d.]+:\s*', '', title)
+            return title
+        return ""
+    
+    def _extract_acceptance_criteria_from_content(self, content: str) -> str:
+        """Extract acceptance criteria from story content."""
+        match = re.search(
+            r'##\s+Acceptance\s+Criteria\s*\n(.*?)(?=\n##|\Z)',
+            content,
+            re.IGNORECASE | re.DOTALL
+        )
+        if match:
+            criteria = match.group(1).strip()
+            return criteria[:200] + "..." if len(criteria) > 200 else criteria
+        return ""
+    
+    def _check_file_based_artifacts(self, story_file: Path) -> List[str]:
+        """Check for missing artifacts for file-based stories."""
+        missing = []
+        story_dir = story_file.parent
+        
+        # Check for context file
+        context_file = story_dir / f"{story_file.stem}.context.xml"
+        if not context_file.exists():
+            context_md = story_dir / f"{story_file.stem}.context.md"
+            if not context_md.exists():
+                missing.append("context")
+        
+        # Check for tests (look in tests directory)
+        tests_dir = story_file.parents[1] / "tests" if len(story_file.parents) > 1 else None
+        if tests_dir and tests_dir.exists():
+            test_files = list(tests_dir.rglob(f"*{story_file.stem}*.py"))
+            if not test_files:
+                missing.append("tests")
+        else:
+            missing.append("tests")
+        
+        return missing
     
     def _check_artifacts(self, story_path: Path) -> List[str]:
         """Check for missing artifacts."""
