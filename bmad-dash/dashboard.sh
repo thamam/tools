@@ -75,7 +75,7 @@ REPOS_ARG="--repos ${REPOS[@]}"
 
 # Launch appropriate view
 if [ "$VIEW" = "executive" ]; then
-    python "$SCRIPT_DIR/bmad_dash_enhanced.py" $REPOS_ARG $SUMMARY $COMMAND
+    python "$SCRIPT_DIR/bmad_dash_v2.py" $REPOS_ARG $SUMMARY $COMMAND
 elif [ "$VIEW" = "table" ]; then
     python "$SCRIPT_DIR/bmad_dash.py" $REPOS_ARG $SUMMARY $COMMAND
 else
