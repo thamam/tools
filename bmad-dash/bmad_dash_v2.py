@@ -338,6 +338,55 @@ class ActivityPanel(Static):
         return Panel(content, title="📅 Recent Activity", border_style="blue")
 
 
+class ProductVisionPanel(Static):
+    """Product vision panel showing strategic context."""
+    
+    def __init__(self, vision, analytics: DashboardAnalytics):
+        super().__init__()
+        self.vision = vision
+        self.analytics = analytics
+    
+    def render(self) -> Panel:
+        """Render product vision panel."""
+        if not self.vision:
+            return Panel("No product vision found", title="🎯 Product Vision")
+        
+        summary = self.analytics.get_executive_summary()
+        
+        lines = []
+        lines.append(f"[bold cyan]📱 {self.vision.project_name}[/bold cyan]")
+        lines.append("")
+        
+        # Goal
+        if self.vision.goal:
+            lines.append("[bold]Goal:[/bold]")
+            lines.append(f"  {self.vision.goal}")
+            lines.append("")
+        
+        # Overall status
+        lines.append(f"[bold]Status:[/bold] {summary['completion_pct']:.1f}% complete ({summary['done_stories']}/{summary['total_stories']} stories)")
+        lines.append("")
+        
+        # Milestones
+        if self.vision.milestones:
+            lines.append("[bold]Key Milestones:[/bold]")
+            for milestone in self.vision.milestones[:5]:
+                status_emoji = {
+                    "Done": "✅",
+                    "In Progress": "🔄",
+                    "Not Started": "⏳"
+                }.get(milestone.status, "❓")
+                lines.append(f"  {status_emoji} {milestone.name}")
+            lines.append("")
+        
+        # Success criteria
+        if self.vision.success_criteria:
+            lines.append("[bold]Success Criteria:[/bold]")
+            for criteria in self.vision.success_criteria[:3]:
+                lines.append(f"  • {criteria}")
+        
+        content = "\n".join(lines)
+        return Panel(content, title="🎯 Product Vision", border_style="cyan")
 class EnhancedDashboardV2(App):
     """Enhanced BMAD Dashboard V2 with visual navigation."""
     
@@ -522,52 +571,3 @@ if __name__ == "__main__":
     main()
 
 
-class ProductVisionPanel(Static):
-    """Product vision panel showing strategic context."""
-    
-    def __init__(self, vision, analytics: DashboardAnalytics):
-        super().__init__()
-        self.vision = vision
-        self.analytics = analytics
-    
-    def render(self) -> Panel:
-        """Render product vision panel."""
-        if not self.vision:
-            return Panel("No product vision found", title="🎯 Product Vision")
-        
-        summary = self.analytics.get_executive_summary()
-        
-        lines = []
-        lines.append(f"[bold cyan]📱 {self.vision.project_name}[/bold cyan]")
-        lines.append("")
-        
-        # Goal
-        if self.vision.goal:
-            lines.append("[bold]Goal:[/bold]")
-            lines.append(f"  {self.vision.goal}")
-            lines.append("")
-        
-        # Overall status
-        lines.append(f"[bold]Status:[/bold] {summary['completion_pct']:.1f}% complete ({summary['done_stories']}/{summary['total_stories']} stories)")
-        lines.append("")
-        
-        # Milestones
-        if self.vision.milestones:
-            lines.append("[bold]Key Milestones:[/bold]")
-            for milestone in self.vision.milestones[:5]:
-                status_emoji = {
-                    "Done": "✅",
-                    "In Progress": "🔄",
-                    "Not Started": "⏳"
-                }.get(milestone.status, "❓")
-                lines.append(f"  {status_emoji} {milestone.name}")
-            lines.append("")
-        
-        # Success criteria
-        if self.vision.success_criteria:
-            lines.append("[bold]Success Criteria:[/bold]")
-            for criteria in self.vision.success_criteria[:3]:
-                lines.append(f"  • {criteria}")
-        
-        content = "\n".join(lines)
-        return Panel(content, title="🎯 Product Vision", border_style="cyan")
