@@ -10,6 +10,7 @@ from typing import List
 
 from bmad_dash import BMADParser, Project, console, health_check
 from analytics import DashboardAnalytics
+from vision_parser import VisionParser, ProductVision
 
 from rich.console import Console
 from rich.panel import Panel
@@ -40,6 +41,7 @@ class BreadcrumbPanel(Static):
         
         # Build breadcrumb path
         views = {
+            "vision": "🎯 Product Vision",
             "overview": "📊 Overview",
             "summary": "📊 Executive Summary",
             "distribution": "📈 Story Distribution",
@@ -61,7 +63,7 @@ class BreadcrumbPanel(Static):
         
         content = f"""[bold cyan]📍 You are here:[/bold cyan] {current}
 [dim]Project Progress:[/dim] {progress_visual} {progress_pct:.1f}% complete
-[dim]Navigation:[/dim] Press 1-6 to switch views, 'r' to refresh, 'q' to quit"""
+[dim]Navigation:[/dim] Press 0-6 to switch views, 'r' to refresh, 'q' to quit"""
         
         return Panel(content, border_style="cyan", padding=(0, 1))
 
@@ -356,6 +358,7 @@ class EnhancedDashboardV2(App):
     BINDINGS = [
         Binding("q", "quit", "Quit"),
         Binding("r", "refresh", "Refresh"),
+        Binding("0", "show_vision", "Vision"),
         Binding("1", "show_overview", "Overview"),
         Binding("2", "show_summary", "Summary"),
         Binding("3", "show_distribution", "Distribution"),
@@ -371,6 +374,11 @@ class EnhancedDashboardV2(App):
         super().__init__()
         self.projects = projects
         self.analytics = DashboardAnalytics(projects)
+        # Parse vision from first project
+        self.vision = None
+        if projects:
+            vision_parser = VisionParser(projects[0].path)
+            self.vision = vision_parser.parse_vision()
     
     def compose(self) -> ComposeResult:
         """Create child widgets."""
@@ -403,7 +411,14 @@ class EnhancedDashboardV2(App):
         container.remove_children()
         
         # Add content based on current view
-        if self.current_view == "overview":
+        if self.current_view == "vision":
+            if self.vision:
+                container.mount(ProductVisionPanel(self.vision, self.analytics))
+                container.mount(ExecutiveSummaryPanel(self.analytics))
+                container.mount(SequenceDiagramPanel(self.analytics))
+            else:
+                container.mount(Panel("No product vision found. Add docs/product-brief-*.md or docs/epics.md to your repository.", title="🎯 Product Vision"))
+        elif self.current_view == "overview":
             container.mount(SequenceDiagramPanel(self.analytics))
             container.mount(ExecutiveSummaryPanel(self.analytics))
             container.mount(EpicMapPanel(self.analytics))
@@ -459,6 +474,11 @@ class EnhancedDashboardV2(App):
         """Show project tree."""
         self.current_view = "tree"
         self.notify("Project Tree")
+    
+    def action_show_vision(self):
+        """Show product vision."""
+        self.current_view = "vision"
+        self.notify("Product Vision")
 
 
 def print_executive_summary_static(projects: List[Project]):
@@ -500,3 +520,54 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+class ProductVisionPanel(Static):
+    """Product vision panel showing strategic context."""
+    
+    def __init__(self, vision, analytics: DashboardAnalytics):
+        super().__init__()
+        self.vision = vision
+        self.analytics = analytics
+    
+    def render(self) -> Panel:
+        """Render product vision panel."""
+        if not self.vision:
+            return Panel("No product vision found", title="🎯 Product Vision")
+        
+        summary = self.analytics.get_executive_summary()
+        
+        lines = []
+        lines.append(f"[bold cyan]📱 {self.vision.project_name}[/bold cyan]")
+        lines.append("")
+        
+        # Goal
+        if self.vision.goal:
+            lines.append("[bold]Goal:[/bold]")
+            lines.append(f"  {self.vision.goal}")
+            lines.append("")
+        
+        # Overall status
+        lines.append(f"[bold]Status:[/bold] {summary['completion_pct']:.1f}% complete ({summary['done_stories']}/{summary['total_stories']} stories)")
+        lines.append("")
+        
+        # Milestones
+        if self.vision.milestones:
+            lines.append("[bold]Key Milestones:[/bold]")
+            for milestone in self.vision.milestones[:5]:
+                status_emoji = {
+                    "Done": "✅",
+                    "In Progress": "🔄",
+                    "Not Started": "⏳"
+                }.get(milestone.status, "❓")
+                lines.append(f"  {status_emoji} {milestone.name}")
+            lines.append("")
+        
+        # Success criteria
+        if self.vision.success_criteria:
+            lines.append("[bold]Success Criteria:[/bold]")
+            for criteria in self.vision.success_criteria[:3]:
+                lines.append(f"  • {criteria}")
+        
+        content = "\n".join(lines)
+        return Panel(content, title="🎯 Product Vision", border_style="cyan")
