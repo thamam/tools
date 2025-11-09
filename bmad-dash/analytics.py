@@ -4,9 +4,17 @@ Calculates metrics, velocity, and insights from project data
 """
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 from collections import defaultdict
 import re
+
+# Health status thresholds
+STALE_WARNING_THRESHOLD = 5
+STALE_CRITICAL_THRESHOLD = 10
+ARTIFACTS_WARNING_THRESHOLD = 20
+ARTIFACTS_CRITICAL_THRESHOLD = 40
+DEFAULT_STALE_DAYS = 7
+DEFAULT_ACTIVITY_DAYS = 7
 
 
 class DashboardAnalytics:
@@ -44,9 +52,9 @@ class DashboardAnalytics:
         missing_artifacts_count = sum(len(s.missing_artifacts) for s in self.all_stories)
         
         health_status = "HEALTHY"
-        if stale_count > 5 or missing_artifacts_count > 20:
+        if stale_count > STALE_WARNING_THRESHOLD or missing_artifacts_count > ARTIFACTS_WARNING_THRESHOLD:
             health_status = "WARNING"
-        if stale_count > 10 or missing_artifacts_count > 40:
+        if stale_count > STALE_CRITICAL_THRESHOLD or missing_artifacts_count > ARTIFACTS_CRITICAL_THRESHOLD:
             health_status = "CRITICAL"
         
         return {
@@ -135,16 +143,18 @@ class DashboardAnalytics:
             "recommendations": recommendations
         }
     
-    def get_recent_activity(self, days: int = 7) -> List[Dict]:
+    def get_recent_activity(self, days: int = DEFAULT_ACTIVITY_DAYS, now: Optional[datetime] = None) -> List[Dict]:
         """Get recent story updates."""
-        cutoff = datetime.now() - timedelta(days=days)
+        if now is None:
+            now = datetime.now()
+        cutoff = now - timedelta(days=days)
         recent = []
         
         for story in self.all_stories:
             if story.last_commit_time and story.last_commit_time >= cutoff:
                 recent.append({
                     "story": story,
-                    "days_ago": (datetime.now() - story.last_commit_time).days,
+                    "days_ago": (now - story.last_commit_time).days,
                     "commit_sha": story.last_commit_sha
                 })
         
@@ -178,16 +188,18 @@ class DashboardAnalytics:
         
         return round(velocity, 1)
     
-    def _get_stale_stories(self, days: int = 7) -> List:
+    def _get_stale_stories(self, days: int = DEFAULT_STALE_DAYS, now: Optional[datetime] = None) -> List:
         """Get stories that haven't been updated in N days and aren't Done."""
-        cutoff = datetime.now() - timedelta(days=days)
+        if now is None:
+            now = datetime.now()
+        cutoff = now - timedelta(days=days)
         stale = []
         
         for story in self.all_stories:
             if story.state != "Done":
                 if story.last_commit_time:
                     if story.last_commit_time < cutoff:
-                        days_old = (datetime.now() - story.last_commit_time).days
+                        days_old = (now - story.last_commit_time).days
                         stale.append({
                             "story": story,
                             "days_old": days_old

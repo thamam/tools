@@ -6,7 +6,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import List
+from typing import List, ClassVar
 
 from bmad_dash import BMADParser, Project, console, health_check
 from analytics import DashboardAnalytics
@@ -404,7 +404,7 @@ class EnhancedDashboardV2(App):
     }
     """
     
-    BINDINGS = [
+    BINDINGS: ClassVar = [
         Binding("q", "quit", "Quit"),
         Binding("r", "refresh", "Refresh"),
         Binding("0", "show_vision", "Vision"),
@@ -422,6 +422,7 @@ class EnhancedDashboardV2(App):
     def __init__(self, projects: List[Project]):
         super().__init__()
         self.projects = projects
+        self.repo_paths = [project.path for project in projects]
         self.analytics = DashboardAnalytics(projects)
         # Parse vision from first project
         self.vision = None
@@ -466,7 +467,11 @@ class EnhancedDashboardV2(App):
                 container.mount(ExecutiveSummaryPanel(self.analytics))
                 container.mount(SequenceDiagramPanel(self.analytics))
             else:
-                container.mount(Panel("No product vision found. Add docs/product-brief-*.md or docs/epics.md to your repository.", title="🎯 Product Vision"))
+                # Wrap Panel in Static widget (Textual requirement)
+                class NoVisionPanel(Static):
+                    def render(self):
+                        return Panel("No product vision found. Add docs/product-brief-*.md or docs/epics.md to your repository.", title="🎯 Product Vision")
+                container.mount(NoVisionPanel())
         elif self.current_view == "overview":
             container.mount(SequenceDiagramPanel(self.analytics))
             container.mount(ExecutiveSummaryPanel(self.analytics))
@@ -489,10 +494,21 @@ class EnhancedDashboardV2(App):
             container.mount(SequenceDiagramPanel(self.analytics))
     
     def action_refresh(self):
-        """Refresh the dashboard."""
+        """Refresh the dashboard by reparsing repos from disk."""
+        # Reparse all repositories from disk to pick up new commits/artifacts
+        parser = BMADParser([str(path) for path in self.repo_paths])
+        self.projects = parser.parse_all()
+        self.repo_paths = [project.path for project in self.projects]
         self.analytics = DashboardAnalytics(self.projects)
+        
+        # Reparse vision
+        if self.projects:
+            vision_parser = VisionParser(self.projects[0].path)
+            self.vision = vision_parser.parse_vision()
+        
+        # Update content to reflect new data
         self.update_content()
-        self.notify("Dashboard refreshed")
+        self.notify("Dashboard refreshed from disk")
     
     def action_show_overview(self):
         """Show overview."""
@@ -532,8 +548,50 @@ class EnhancedDashboardV2(App):
 
 def print_executive_summary_static(projects: List[Project]):
     """Print executive summary to console (non-interactive)."""
-    from bmad_dash_enhanced import print_executive_summary_static as orig_print
-    orig_print(projects)
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.table import Table
+    from analytics import DashboardAnalytics
+    
+    console = Console()
+    analytics = DashboardAnalytics(projects)
+    
+    summary = analytics.get_executive_summary()
+    distribution = analytics.get_state_distribution()
+    epics = analytics.get_epic_breakdown()
+    risks = analytics.get_risks_and_attention()
+    
+    # Executive Summary
+    console.print(Panel.fit(
+        f"[bold]Progress:[/bold] {summary['completion_pct']:.1f}% ({summary['done_stories']}/{summary['total_stories']} stories)\n"
+        f"[bold]Velocity:[/bold] {summary['velocity']:.1f} stories/week\n"
+        f"[bold]ETA:[/bold] {summary['eta_weeks']:.1f} weeks\n"
+        f"[bold]Health:[/bold] {summary['health_status']}",
+        title="🎯 Executive Summary"
+    ))
+    
+    # Story Distribution
+    table = Table(title="📊 Story Distribution")
+    table.add_column("State", style="cyan")
+    table.add_column("Count", justify="right")
+    table.add_column("Percentage", justify="right")
+    
+    total = sum(distribution.values())
+    for state, count in distribution.items():
+        pct = (count / total * 100) if total > 0 else 0
+        table.add_row(state, str(count), f"{pct:.1f}%")
+    
+    console.print(table)
+    
+    # Epic Map
+    console.print("\n🗺️  Epic Map:")
+    for epic in epics:
+        status_icon = "✅" if epic['status'] == "Complete" else "🔄" if epic['status'] == "In Progress" else "⏳"
+        console.print(f"  {status_icon} {epic['name']}: {epic['progress_pct']:.0f}% ({epic['done_stories']}/{epic['total_stories']})")
+    
+    # Risks
+    if risks['stale_stories']:
+        console.print(f"\n⚠️  {len(risks['stale_stories'])} stale stories need attention")
 
 
 def main():

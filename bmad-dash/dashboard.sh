@@ -70,14 +70,14 @@ if [ ${#REPOS[@]} -eq 0 ]; then
     exit 1
 fi
 
-# Build repos argument
-REPOS_ARG="--repos ${REPOS[@]}"
+# Build repos argument as array
+REPOS_ARG=(--repos "${REPOS[@]}")
 
 # Launch appropriate view
 if [ "$VIEW" = "executive" ]; then
-    python "$SCRIPT_DIR/bmad_dash_v2.py" $REPOS_ARG $SUMMARY $COMMAND
+    python "$SCRIPT_DIR/bmad_dash_v2.py" "${REPOS_ARG[@]}" $SUMMARY $COMMAND
 elif [ "$VIEW" = "table" ]; then
-    python "$SCRIPT_DIR/bmad_dash.py" $REPOS_ARG $SUMMARY $COMMAND
+    python "$SCRIPT_DIR/bmad_dash.py" "${REPOS_ARG[@]}" $SUMMARY $COMMAND
 else
     echo "Error: Unknown view type: $VIEW"
     echo "Use 'executive' or 'table'"

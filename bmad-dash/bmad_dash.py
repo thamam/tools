@@ -11,7 +11,7 @@ import sys
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional, Dict, Set
+from typing import List, Optional, Dict, Set, ClassVar
 
 import yaml
 from git import Repo, InvalidGitRepositoryError
@@ -184,7 +184,7 @@ class BMADParser:
                     if state_data:
                         state = state_data.get("state", "Draft")
                         owner = state_data.get("owner", "")
-            except Exception as e:
+            except (yaml.YAMLError, IOError, KeyError) as e:
                 console.print(f"[yellow]Warning: Could not parse {state_file}: {e}[/yellow]")
         
         story = Story(
@@ -221,7 +221,7 @@ class BMADParser:
             try:
                 with open(log_file) as f:
                     story.log_lines = f.readlines()[-5:]
-            except Exception:
+            except (IOError, OSError):
                 pass
         
         return story
@@ -267,7 +267,7 @@ class BMADParser:
             
             return story
             
-        except Exception as e:
+        except (IOError, OSError, ValueError) as e:
             console.print(f"[yellow]Warning: Could not parse {story_file}: {e}[/yellow]")
             return None
     
@@ -374,7 +374,7 @@ class BMADParser:
                 )
                 if ac_match:
                     criteria = ac_match.group(1).strip()[:200]  # First 200 chars
-        except Exception:
+        except (IOError, OSError, ValueError):
             pass
         
         return title, criteria
@@ -400,7 +400,7 @@ class BMADDashboard(App):
     }
     """
     
-    BINDINGS = [
+    BINDINGS: ClassVar = [
         Binding("q", "quit", "Quit"),
         Binding("r", "refresh", "Refresh"),
         Binding("enter", "show_detail", "Detail"),

@@ -49,8 +49,8 @@ class VisionParser:
         for pattern in vision_files:
             files = list(self.docs_path.glob(pattern))
             if files:
-                # Use the most recent file
-                file_path = sorted(files)[-1]
+                # Use the most recently modified file
+                file_path = max(files, key=lambda f: f.stat().st_mtime)
                 data = self._parse_vision_file(file_path)
                 vision_data.update(data)
         
@@ -118,7 +118,7 @@ class VisionParser:
                     ))
                 break
         
-        # If no milestones found, try to extract from story map
+        # If no milestones found, try to extract from story map or simple headers
         if not milestones:
             story_map_match = re.search(r"##\s+Story Map\s*\n```(.*?)```", content, re.DOTALL)
             if story_map_match:
@@ -129,6 +129,15 @@ class VisionParser:
                     milestones.append(Milestone(
                         name=line.strip(),
                         status="Not Started"
+                    ))
+            else:
+                # Try simple ## Story pattern with Status
+                story_matches = re.findall(r"##\s+(?:Story\s+\d+:|Epic\s+\d+:)?\s*(.+?)\n(?:.*?Status:\s*(\w+[^\n]*))?", content, re.DOTALL)
+                for name, status in story_matches[:5]:
+                    status_clean = status.strip() if status else "Not Started"
+                    milestones.append(Milestone(
+                        name=name.strip(),
+                        status=status_clean
                     ))
         
         data["milestones"] = milestones

@@ -1,6 +1,7 @@
 #!/bin/bash
-# BMAD Dashboard Runner Script
-# Automatically activates virtual environment and runs the dashboard
+# BMAD Dashboard Runner Script (Legacy)
+# Runs the original table view (bmad_dash.py)
+# For the enhanced dashboard with multi-resolution views, use ./dashboard.sh instead
 
 set -e
 

@@ -1,56 +1,73 @@
-# BMAD Dashboard
+# BMAD Dashboard v1.0
 
-**Terminal-based MVP dashboard for managing BMAD (Breakthrough Method for Agile AI-Driven Development) projects.**
+**Executive terminal dashboard for managing BMAD projects with multi-resolution views**
 
-BMAD Dashboard provides a unified, interactive view of multiple BMAD repositories, enabling you to track feature progress, story states, artifact completeness, and Git history—all from a single terminal interface.
+BMAD Dashboard provides VP R&D, project managers, and developers with a powerful command-line interface for tracking project health, progress, and strategic alignment across multiple BMAD (Breakthrough Method for Agile AI-Driven Development) projects.
 
 ## Features
 
-### Core Capabilities
+### 🎯 Multi-Resolution Navigation (7 Levels)
 
-**Unified Project View**: Monitor multiple BMAD repositories simultaneously with a consolidated dashboard that displays all features and stories across projects.
+Navigate seamlessly between strategic vision and tactical execution:
 
-**State Tracking**: Visualize story states (Draft, Ready, Dev, Review, Done) with color-coded indicators and track progression through the development lifecycle.
+- **Level 0 (Vision)** - Product goals, milestones, and success criteria
+- **Level 1 (Overview)** - Project roadmap, summary, and epic map
+- **Level 2 (Summary)** - Executive metrics, velocity, and KPIs
+- **Level 3 (Distribution)** - Story state breakdown and bottlenecks
+- **Level 4 (Epics)** - Epic-level progress with tree structure
+- **Level 5 (Risks)** - Attention items and actionable recommendations
+- **Level 6 (Tree)** - Complete project hierarchy with "you are here" markers
 
-**Artifact Validation**: Automatically detect missing artifacts including PRD documents, design specifications, test files, and logs to ensure project completeness.
+### 📊 Executive Dashboard
 
-**Git Integration**: Display last commit SHA and timestamps for each story, helping you identify stale work and recent activity.
+- **Progress tracking** with visual indicators and completion percentages
+- **Velocity metrics** (stories/week) calculated from Git history
+- **Health status** (🚨 CRITICAL, ⚠️ WARNING, ✅ HEALTHY) based on stale stories and missing artifacts
+- **ETA calculation** for project completion
+- **Story distribution** charts showing bottlenecks
 
-**Interactive TUI**: Navigate stories using arrow keys, view detailed information, and execute quick actions without leaving the terminal.
+### 🗺️ Visual Orientation
 
-**Health Check**: Run automated checks to identify stale stories, missing artifacts, and other project health issues with JSON output for scripting.
+- **Project roadmap** showing journey from START to END with "YOU ARE HERE" markers
+- **Tree view** with hierarchical structure of epics and stories
+- **Breadcrumb navigation** always visible at the top
+- **Progress dots** (●○○○○) showing visual completion status
 
-### Quick Actions
+### 🔍 Risk & Attention Panel
 
-The dashboard supports several keyboard shortcuts for common operations:
+- **Stale story detection** (>7 days without updates, configurable)
+- **Missing artifact tracking** (PRDs, tests, context files, logs)
+- **Actionable recommendations** (not just data)
+- **Health check command** with JSON output for CI/CD integration
 
-- **Enter**: View detailed information about the selected story including PRD title, acceptance criteria, and recent log entries
-- **s**: Display valid state transitions based on the current story state
-- **o**: Show the command to open the story's PRD in your configured editor
-- **l**: Show the command to tail the story's log file
-- **r**: Refresh the dashboard to reflect latest changes from disk and Git
-- **q**: Quit the application
+### 🎨 Interactive TUI
+
+- **Rich terminal UI** using Textual framework for beautiful rendering
+- **Keyboard shortcuts** (0-6 for views, r for refresh, q for quit)
+- **Color-coded status** indicators for instant understanding
+- **Real-time updates** - refresh to pick up new commits and artifacts
+
+### 🔧 Flexible Architecture
+
+- **Multiple BMAD structures** supported:
+  - Directory-based: `features/[feature]/stories/[story]/state.yaml`
+  - File-based: `docs/stories/story-*.md`
+- **Automatic detection** of project structure using pattern matching
+- **Git integration** for accurate commit tracking and story updates
+- **Multi-repository support** - track multiple projects simultaneously
 
 ## Installation
 
-### Quick Install (Recommended)
-
-The easiest way to install is using the provided installation script, which creates an isolated virtual environment:
+### Quick Start
 
 ```bash
-git clone https://github.com/thamam/tools.git
-cd tools/bmad-dash
+cd bmad-dash
 ./install.sh
 ```
 
-This will:
-- Create a virtual environment in `venv/`
-- Install all dependencies in isolation
-- Avoid conflicts with other Python packages
+This creates a virtual environment and installs all dependencies.
 
 ### Manual Installation
-
-If you prefer to manage the virtual environment yourself:
 
 ```bash
 python3 -m venv venv
@@ -58,220 +75,228 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### Using pipx (Alternative)
-
-For system-wide installation:
+### Using pipx (Global Installation)
 
 ```bash
-pipx install bmad-dash
+pipx install .
 ```
 
 ## Usage
 
-### Interactive Dashboard
-
-Launch the interactive TUI to browse and manage your BMAD projects:
+### Interactive Dashboard (Recommended)
 
 ```bash
-# Using the convenience script (recommended)
-./run.sh --repos ~/projects/repo1 ~/projects/repo2
+./dashboard.sh --repos ~/your/bmad/project
+```
 
-# Or manually activate venv first
+**Keyboard Shortcuts:**
+- `0` - Product Vision (strategic goals and milestones)
+- `1` - Overview (roadmap + summary + epics)
+- `2` - Summary (executive metrics and KPIs)
+- `3` - Distribution (story state breakdown)
+- `4` - Epics (epic-level progress tracking)
+- `5` - Risks (attention items and recommendations)
+- `6` - Tree (full project hierarchy with "you are here")
+- `r` - Refresh (reparse repos from disk)
+- `q` - Quit
+
+### Quick Summary (Non-Interactive)
+
+```bash
+./dashboard.sh --repos ~/your/project --summary
+```
+
+Prints executive summary to console and exits.
+
+### Health Check (JSON Output)
+
+```bash
+./dashboard.sh check --repos ~/your/project > health.json
+```
+
+Outputs health check results in JSON format for CI/CD integration.
+
+### Simple Table View
+
+```bash
+./dashboard.sh --view table --repos ~/your/project
+```
+
+Uses the original simple table interface (bmad_dash.py).
+
+### Multiple Repositories
+
+```bash
+./dashboard.sh --repos ~/project1 ~/project2 ~/project3
+```
+
+Track multiple BMAD projects in a single dashboard.
+
+## Requirements
+
+- **Python** ≥3.10
+- **Git** (for commit tracking)
+- **Terminal** with color support
+
+### Dependencies
+
+- `rich` - Terminal formatting and rendering
+- `textual` - Interactive TUI framework
+- `PyYAML` - YAML parsing for state files
+- `GitPython` - Git integration
+
+All dependencies are automatically installed in the virtual environment.
+
+## Project Structure
+
+```
+bmad-dash/
+├── bmad_dash.py          # Original parser and table view
+├── bmad_dash_v2.py       # Enhanced dashboard with multi-resolution views
+├── analytics.py          # Dashboard analytics and metrics
+├── vision_parser.py      # Product vision extraction
+├── dashboard.sh          # Main launcher script
+├── install.sh            # Installation script
+├── run.sh                # Simple runner for table view
+├── demo.sh               # Demo script
+├── requirements.txt      # Python dependencies
+├── setup.py              # Package configuration
+├── tests/                # Unit tests
+│   ├── test_bmad_dash.py
+│   ├── test_analytics.py
+│   └── test_vision_parser.py
+└── README.md             # This file
+```
+
+## Configuration
+
+### Health Thresholds
+
+Edit `analytics.py` to customize health status thresholds:
+
+```python
+STALE_WARNING_THRESHOLD = 5      # Stories >5 days old → WARNING
+STALE_CRITICAL_THRESHOLD = 10    # Stories >10 days old → CRITICAL
+ARTIFACTS_WARNING_THRESHOLD = 20  # >20 missing artifacts → WARNING
+ARTIFACTS_CRITICAL_THRESHOLD = 40 # >40 missing artifacts → CRITICAL
+```
+
+### Vision Documents
+
+Place these files in your project's `docs/` directory for automatic parsing:
+
+- `product-brief-executive-*.md` - Product goals and strategic overview
+- `epics.md` - Project milestones and epics
+- `MVP_*.md` - Success criteria and MVP definition
+
+## Testing
+
+```bash
 source venv/bin/activate
-python bmad_dash.py --repos ~/projects/repo1 ~/projects/repo2
+python -m pytest tests/ -v
 ```
 
-You can also set the `BMAD_REPOS` environment variable to avoid specifying repositories each time:
+**Test Coverage:**
+- Repository parsing (both structures)
+- Story state management
+- PRD extraction
+- Artifact validation
+- Git commit tracking
+- State transitions
+- Health checks
+- Multi-repo support
+- Analytics calculations
+- Vision parsing
+
+## Examples
+
+### Example 1: Daily Standup
 
 ```bash
-export BMAD_REPOS="~/projects/repo1 ~/projects/repo2"
-python bmad_dash.py
+./dashboard.sh --repos ~/project --summary
 ```
 
-### Health Check Command
+Get a quick overview of project health before standup.
 
-Run a health check to get a JSON report of project issues:
+### Example 2: Sprint Planning
 
 ```bash
-# Using the convenience script
-./run.sh check --repos ~/projects/repo1
+./dashboard.sh --repos ~/project
+```
 
-# Or with venv activated
+Press `4` for Epics view to see what's completed and what's next.
+
+### Example 3: Executive Review
+
+```bash
+./dashboard.sh --repos ~/project
+```
+
+Press `0` for Vision view to align on strategic goals, then `1` for Overview to show progress.
+
+### Example 4: CI/CD Integration
+
+```bash
+./dashboard.sh check --repos ~/project | jq '.health_status'
+```
+
+Check project health in your CI pipeline.
+
+## Troubleshooting
+
+### Dashboard shows "No BMAD projects found"
+
+**Solution:** Ensure your repository has one of these structures:
+- `features/[feature]/stories/[story]/state.yaml` (directory-based)
+- `docs/stories/story-*.md` (file-based)
+
+### Refresh doesn't show new commits
+
+**Solution:** Press `r` to refresh. The dashboard now reparses repositories from disk.
+
+### Virtual environment issues
+
+**Solution:** Delete `venv/` and run `./install.sh` again.
+
+### Import errors
+
+**Solution:** Ensure you're in the virtual environment:
+```bash
 source venv/bin/activate
-python bmad_dash.py check --repos ~/projects/repo1
 ```
-
-The health check identifies:
-
-- **Stale stories**: Stories without commits in the last 7 days that are not in Done state
-- **Missing artifacts**: Stories lacking required files (PRD.md, design.md, logs, tests)
-- **Missing PR links**: Stories in Review or Done state without pull request references (future enhancement)
-
-Example output:
-
-```json
-{
-  "stale_stories": [
-    {
-      "project": "my-project",
-      "feature": "auth",
-      "story": "password-reset",
-      "days_old": 14
-    }
-  ],
-  "missing_artifacts": [
-    {
-      "project": "my-project",
-      "feature": "dashboard",
-      "story": "overview",
-      "missing": ["design", "logs"]
-    }
-  ],
-  "missing_pr_links": []
-}
-```
-
-## BMAD Repository Structure
-
-BMAD Dashboard expects repositories to follow this structure:
-
-```
-project-root/
-├── features/
-│   ├── feature-name/
-│   │   ├── stories/
-│   │   │   ├── story-name/
-│   │   │   │   ├── state.yaml
-│   │   │   │   ├── PRD.md
-│   │   │   │   ├── design.md
-│   │   │   │   ├── code/
-│   │   │   │   └── logs/
-│   │   │   │       └── latest.log
-```
-
-### Required Files
-
-**state.yaml**: Contains the current state and owner information for the story.
-
-```yaml
-state: Dev
-owner: Developer
-updated: 2025-11-04
-```
-
-**PRD.md**: Product Requirements Document with title, overview, and acceptance criteria.
-
-**design.md**: Technical design specifications for the story.
-
-**logs/**: Directory containing development logs, with `latest.log` being the most recent.
-
-**code/**: Directory containing implementation code and tests.
-
-## State Machine
-
-BMAD Dashboard enforces a state machine for story progression:
-
-| Current State | Valid Transitions |
-|---------------|-------------------|
-| Draft         | Ready             |
-| Ready         | Dev, Draft        |
-| Dev           | Review, Ready     |
-| Review        | Done, Dev         |
-| Done          | (none)            |
-
-The dashboard validates state transitions and prevents invalid moves, ensuring consistent workflow progression.
-
-## Dashboard Interface
-
-The interactive dashboard displays the following columns:
-
-- **Project**: Repository name
-- **Feature**: Feature directory name
-- **Story**: Story directory name
-- **State**: Current state with color coding (yellow=Draft, cyan=Ready, blue=Dev, magenta=Review, green=Done)
-- **SHA**: Last commit short SHA (7 characters)
-- **Updated**: Time since last commit (e.g., "2d ago", "5h ago")
-- **Owner**: Story owner from state.yaml
-- **Missing**: Missing artifacts or ✓ if complete
-
-## Development
-
-### Running Tests
-
-The project includes comprehensive unit tests covering parsing, state transitions, and health checks:
-
-```bash
-pytest tests/test_bmad_dash.py -v
-```
-
-All tests should pass:
-
-```
-============================= test session starts ==============================
-collected 13 items
-
-tests/test_bmad_dash.py::TestBMADParser::test_parse_repo_structure PASSED
-tests/test_bmad_dash.py::TestBMADParser::test_parse_story_state PASSED
-tests/test_bmad_dash.py::TestBMADParser::test_parse_prd PASSED
-tests/test_bmad_dash.py::TestBMADParser::test_check_artifacts PASSED
-tests/test_bmad_dash.py::TestBMADParser::test_missing_artifacts PASSED
-tests/test_bmad_dash.py::TestBMADParser::test_git_commit_info PASSED
-tests/test_bmad_dash.py::TestBMADParser::test_log_parsing PASSED
-tests/test_bmad_dash.py::TestStateTransitions::test_valid_transitions PASSED
-tests/test_bmad_dash.py::TestStateTransitions::test_done_has_no_transitions PASSED
-tests/test_bmad_dash.py::TestStateTransitions::test_backward_transitions PASSED
-tests/test_bmad_dash.py::TestHealthCheck::test_missing_artifacts_detection PASSED
-tests/test_bmad_dash.py::TestHealthCheck::test_no_issues PASSED
-tests/test_bmad_dash.py::TestMultipleRepos::test_multiple_repos_parsing PASSED
-
-============================== 13 passed in 0.48s
-```
-
-### Code Structure
-
-The implementation follows a clean architecture with three main components:
-
-**BMADParser**: Handles repository discovery, file parsing, and data extraction. Recursively scans feature directories, parses YAML and Markdown files, and integrates with Git to extract commit history.
-
-**BMADDashboard**: Textual-based TUI application that provides the interactive interface. Manages the data table, detail pane, keyboard bindings, and user notifications.
-
-**health_check**: Standalone function that analyzes parsed projects and generates health reports in JSON format for scripting and automation.
-
-## Technical Details
-
-- **Language**: Python ≥3.10
-- **Dependencies**: Rich (terminal formatting), Textual (TUI framework), GitPython (Git integration), PyYAML (YAML parsing)
-- **Footprint**: Single `.py` file (~500 LOC)
-- **Platform**: macOS and Linux (requires terminal with color support)
-
-## Limitations and Future Enhancements
-
-This is an MVP implementation focused on core functionality. Potential enhancements include:
-
-- **State modification**: Currently shows valid transitions but doesn't modify state.yaml files
-- **File opening**: Shows commands but doesn't launch editors directly
-- **Search/filter**: Placeholder for fuzzy search across stories
-- **PR link tracking**: Framework exists but not fully implemented
-- **Real-time refresh**: Manual refresh (r key) works; automatic polling could be added
-- **Export**: Could add CSV/JSON export of dashboard data
-
-## License
-
-This project is provided as-is for BMAD workflow management.
 
 ## Contributing
 
-Contributions are welcome! Please ensure:
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests for new functionality
+5. Run tests: `python -m pytest tests/ -v`
+6. Submit a pull request
 
-- All tests pass before submitting changes
-- New features include corresponding unit tests
-- Code follows the existing style (single-file constraint for MVP)
-- Documentation is updated to reflect changes
+## License
+
+MIT License - See LICENSE file for details
+
+## Version History
+
+### v1.0.0-rc1 (Current)
+- Multi-resolution navigation (7 levels)
+- Product Vision level
+- Enhanced executive dashboard
+- Flexible parser for multiple BMAD structures
+- Comprehensive test coverage
+- Production-ready quality
+
+### v0.1.0
+- Initial release
+- Basic table view
+- Directory-based parsing
 
 ## Support
 
-For issues, questions, or feature requests, please open an issue in the repository.
+For issues, questions, or feature requests, please open an issue on GitHub.
 
 ---
 
-**Built with ❤️ for BMAD practitioners seeking better project visibility and control.**
+**Built with ❤️ for the BMAD community**
