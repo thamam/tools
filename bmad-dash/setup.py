@@ -18,7 +18,6 @@ setup(
     long_description_content_type="text/markdown",
     url="https://github.com/thamam/tools",
     packages=find_packages(exclude=["tests", "tests.*"]),
-    py_modules=["bmad_dash", "bmad_dash_v2", "analytics", "vision_parser"],
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",
