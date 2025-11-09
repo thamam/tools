@@ -15,6 +15,20 @@ const ENHANCEMENT_MODES = {
 
 // Create context menu on installation
 chrome.runtime.onInstalled.addListener(() => {
+  // Remove all existing menus first to prevent duplicate ID errors
+  chrome.contextMenus.removeAll(() => {
+    createContextMenus();
+  });
+});
+
+// Also recreate menus on startup (service worker wake)
+chrome.runtime.onStartup.addListener(() => {
+  chrome.contextMenus.removeAll(() => {
+    createContextMenus();
+  });
+});
+
+function createContextMenus() {
   // Parent menu
   chrome.contextMenus.create({
     id: 'promptEnhance',
@@ -102,7 +116,7 @@ chrome.runtime.onInstalled.addListener(() => {
     title: '📊 Evaluate & Score',
     contexts: ['selection']
   });
-});
+}
 
 // Handle context menu clicks
 chrome.contextMenus.onClicked.addListener((info, tab) => {
@@ -125,5 +139,24 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     action: 'enhancePrompt',
     text: selectedText,
     mode: mode
+  }, (response) => {
+    // Handle case where content script isn't loaded
+    if (chrome.runtime.lastError) {
+      console.log('Content script not ready:', chrome.runtime.lastError.message);
+      // Try to inject content scripts manually
+      chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        files: ['enhancer.js', 'content.js']
+      }).then(() => {
+        // Retry sending message after injection
+        chrome.tabs.sendMessage(tab.id, {
+          action: 'enhancePrompt',
+          text: selectedText,
+          mode: mode
+        });
+      }).catch(err => {
+        console.error('Failed to inject content script:', err);
+      });
+    }
   });
 });
