@@ -236,12 +236,22 @@ prompt-enhancer-extension/
 - `scripting`: Text replacement capability
 - `storage`: Enhancement statistics
 
-## Keyboard Shortcuts (Future)
+## Keyboard Shortcuts ⌨️ **NEW in v1.1**
 
-Coming in v1.1:
-- `Ctrl+Shift+E`: Quick enhance (last used mode)
-- `Ctrl+Shift+Z`: Zero Shot mode
-- `Ctrl+Shift+I`: Interactive mode
+Super fast enhancement without clicking! Select text and use:
+
+- **`Ctrl+Shift+E`** (`Cmd+Shift+E` on Mac): **Quick Enhance** - Repeats your last used mode
+- **`Ctrl+Shift+Z`** (`Cmd+Shift+Z` on Mac): **Zero Shot Mode** - No questions allowed
+- **`Ctrl+Shift+I`** (`Cmd+Shift+I` on Mac): **Interactive Mode** - Step-by-step
+- **`Ctrl+Shift+C`** (`Cmd+Shift+C` on Mac): **Claude Optimize** - XML formatting
+
+### Customize Shortcuts
+1. Go to `chrome://extensions/shortcuts`
+2. Find "Prompt Enhancer Pro"
+3. Click pencil icon to change any shortcut
+4. Set your preferred key combinations
+
+**Pro Tip**: `Ctrl+Shift+E` learns your preference! It uses whichever mode you used last (via context menu or shortcut).
 
 ## Statistics
 

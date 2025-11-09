@@ -44,6 +44,33 @@ Defined in `ENHANCEMENT_MODES` constant (background.js:3-13):
 - `PLATFORM_CONVERT`: Platform-specific formatting (future use)
 - `EVALUATE_SCORE`: 4-dimension quality scoring (Clarity, Specificity, Completeness, Efficiency)
 
+## Keyboard Shortcuts (v1.1.0+)
+
+### Available Shortcuts
+- `Ctrl+Shift+E` (Mac: `Cmd+Shift+E`): Quick enhance with last used mode
+- `Ctrl+Shift+Z` (Mac: `Cmd+Shift+Z`): Zero Shot mode
+- `Ctrl+Shift+I` (Mac: `Cmd+Shift+I`): Interactive mode
+- `Ctrl+Shift+C` (Mac: `Cmd+Shift+C`): Claude optimization
+
+### Implementation Details
+- **Manifest**: Commands defined in `manifest.json:35-64`
+- **Background Handler**: `chrome.commands.onCommand` listener in `background.js:138-202`
+- **Selection Detection**: Uses `chrome.scripting.executeScript` to get `window.getSelection()`
+- **Last Used Mode**: Stored in `chrome.storage.local.lastUsedMode`
+- **Error Handling**: Shows notification if no text selected
+
+### How It Works
+1. User presses shortcut (e.g., `Ctrl+Shift+E`)
+2. Background script gets active tab
+3. Executes script to read selected text via `window.getSelection()`
+4. If no selection: shows red warning notification
+5. If selection exists: retrieves appropriate mode (or last used for quick enhance)
+6. Calls `enhanceText()` helper function
+7. Content script enhances and replaces text
+
+### Customization
+Users can customize shortcuts at `chrome://extensions/shortcuts`
+
 ## Development Commands
 
 ### Icon Generation (Required for installation)

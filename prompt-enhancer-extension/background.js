@@ -128,6 +128,81 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   const selectedText = info.selectionText;
   const mode = info.menuItemId;
 
+  // Store last used mode for keyboard shortcuts
+  chrome.storage.local.set({ lastUsedMode: mode });
+
+  // Enhance the text
+  enhanceText(tab.id, selectedText, mode);
+});
+
+// Handle keyboard shortcuts
+chrome.commands.onCommand.addListener((command) => {
+  // Get the active tab
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    if (!tabs[0]) return;
+
+    const tab = tabs[0];
+
+    // Execute script to get selected text
+    chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: () => window.getSelection().toString()
+    }).then((results) => {
+      const selectedText = results[0]?.result;
+
+      if (!selectedText || selectedText.trim() === '') {
+        // Show notification if no text is selected
+        chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: (message) => {
+            const notification = document.createElement('div');
+            notification.textContent = message;
+            notification.style.cssText = 'position:fixed;top:20px;right:20px;background:#ef4444;color:white;padding:16px 24px;border-radius:8px;z-index:999999;font-family:system-ui;box-shadow:0 4px 12px rgba(0,0,0,0.2);';
+            document.body.appendChild(notification);
+            setTimeout(() => notification.remove(), 3000);
+          },
+          args: ['⚠️ Please select some text first']
+        });
+        return;
+      }
+
+      // Determine which mode to use
+      let mode;
+
+      switch (command) {
+        case 'enhance-zero-shot':
+          mode = ENHANCEMENT_MODES.ZERO_SHOT;
+          break;
+        case 'enhance-interactive':
+          mode = ENHANCEMENT_MODES.INTERACTIVE;
+          break;
+        case 'enhance-claude':
+          mode = ENHANCEMENT_MODES.CLAUDE_OPTIMIZE;
+          break;
+        case 'enhance-last-used':
+          // Get last used mode from storage
+          chrome.storage.local.get(['lastUsedMode'], (result) => {
+            const lastMode = result.lastUsedMode || ENHANCEMENT_MODES.FIX_ANTIPATTERNS;
+            enhanceText(tab.id, selectedText, lastMode);
+          });
+          return; // Early return to avoid calling enhanceText below
+        default:
+          return;
+      }
+
+      // Store last used mode
+      chrome.storage.local.set({ lastUsedMode: mode });
+
+      // Enhance the text
+      enhanceText(tab.id, selectedText, mode);
+    }).catch(err => {
+      console.error('Failed to get selected text:', err);
+    });
+  });
+});
+
+// Helper function to enhance text
+function enhanceText(tabId, text, mode) {
   // Increment statistics
   chrome.storage.local.get(['enhancementCount'], (result) => {
     const count = (result.enhancementCount || 0) + 1;
@@ -135,9 +210,9 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   });
 
   // Send message to content script to enhance and replace text
-  chrome.tabs.sendMessage(tab.id, {
+  chrome.tabs.sendMessage(tabId, {
     action: 'enhancePrompt',
-    text: selectedText,
+    text: text,
     mode: mode
   }, (response) => {
     // Handle case where content script isn't loaded
@@ -145,13 +220,13 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
       console.log('Content script not ready:', chrome.runtime.lastError.message);
       // Try to inject content scripts manually
       chrome.scripting.executeScript({
-        target: { tabId: tab.id },
+        target: { tabId: tabId },
         files: ['enhancer.js', 'content.js']
       }).then(() => {
         // Retry sending message after injection
-        chrome.tabs.sendMessage(tab.id, {
+        chrome.tabs.sendMessage(tabId, {
           action: 'enhancePrompt',
-          text: selectedText,
+          text: text,
           mode: mode
         });
       }).catch(err => {
@@ -159,4 +234,4 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
       });
     }
   });
-});
+}

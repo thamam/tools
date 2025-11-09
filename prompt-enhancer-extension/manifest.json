@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Prompt Enhancer Pro",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "Enhance prompts following systematic prompt engineering guidelines",
   "permissions": [
     "contextMenus",
@@ -30,6 +30,36 @@
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",
       "128": "icons/icon128.png"
+    }
+  },
+  "commands": {
+    "enhance-last-used": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+E",
+        "mac": "Command+Shift+E"
+      },
+      "description": "Quick enhance with last used mode"
+    },
+    "enhance-zero-shot": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+Z",
+        "mac": "Command+Shift+Z"
+      },
+      "description": "Enhance with Zero Shot mode"
+    },
+    "enhance-interactive": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+I",
+        "mac": "Command+Shift+I"
+      },
+      "description": "Enhance with Interactive mode"
+    },
+    "enhance-claude": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+C",
+        "mac": "Command+Shift+C"
+      },
+      "description": "Optimize for Claude"
     }
   }
 }
