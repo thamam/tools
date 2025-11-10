@@ -21,21 +21,21 @@ class TestSpeechEngineManager:
     def test_get_available_engines(self):
         """Test getting available engines."""
         manager = SpeechEngineManager()
-        
+
         engines = manager.get_available_engines()
         assert isinstance(engines, list)
-        
+
         # Should contain at least one of the engines if dependencies are available
-        possible_engines = ['whisper', 'google']
+        possible_engines = ['faster-whisper', 'whisper', 'google']
         for engine in engines:
             assert engine in possible_engines
     
     def test_is_engine_available(self):
         """Test checking if specific engine is available."""
         manager = SpeechEngineManager()
-        
+
         # Test with known engine names
-        for engine_name in ['whisper', 'google']:
+        for engine_name in ['faster-whisper', 'whisper', 'google']:
             result = manager.is_engine_available(engine_name)
             assert isinstance(result, bool)
         
@@ -69,18 +69,23 @@ class TestSpeechEngineManager:
 class TestWhisperEngine:
     """Test the WhisperEngine class."""
     
+    @patch('torch.cuda.is_available', return_value=False)
     @patch('speech.engines.WHISPER_AVAILABLE', True)
-    @patch('speech.engines.whisper.load_model')
-    def test_whisper_engine_initialization(self, mock_load_model):
+    def test_whisper_engine_initialization(self, mock_cuda):
         """Test Whisper engine initialization."""
+        # Mock whisper module to avoid NumPy 2.2 compatibility issues
+        mock_whisper = Mock()
         mock_model = Mock()
-        mock_load_model.return_value = mock_model
-        
-        engine = WhisperEngine(model_size="base")
-        
-        assert engine.model_size == "base"
-        assert engine.model == mock_model
-        mock_load_model.assert_called_once_with("base")
+        mock_whisper.load_model.return_value = mock_model
+
+        with patch('speech.engines.whisper', mock_whisper, create=True):
+            config = {'force_cpu': False}
+            engine = WhisperEngine(model_size="base", config=config)
+
+            assert engine.model_size == "base"
+            assert engine.model == mock_model
+            # v2.1 GPU detection: device='cpu' passed when CUDA not available
+            mock_whisper.load_model.assert_called_once_with("base", device='cpu')
     
     @patch('speech.engines.WHISPER_AVAILABLE', False)
     def test_whisper_engine_unavailable(self):
@@ -89,37 +94,46 @@ class TestWhisperEngine:
         
         assert engine.is_available() is False
     
+    @patch('torch.cuda.is_available', return_value=False)
     @patch('speech.engines.WHISPER_AVAILABLE', True)
-    def test_whisper_engine_name(self):
+    def test_whisper_engine_name(self, mock_cuda):
         """Test Whisper engine name property."""
-        with patch('speech.engines.whisper.load_model'):
-            engine = WhisperEngine()
+        # Mock whisper module to avoid NumPy 2.2 compatibility issues
+        mock_whisper = Mock()
+        mock_whisper.load_model.return_value = Mock()
+
+        with patch('speech.engines.whisper', mock_whisper, create=True):
+            config = {'force_cpu': False}
+            engine = WhisperEngine(config=config)
             assert engine.name == "whisper"
     
+    @patch('torch.cuda.is_available', return_value=False)
     @patch('speech.engines.WHISPER_AVAILABLE', True)
-    @patch('speech.engines.whisper.load_model')
-    def test_whisper_transcribe(self, mock_load_model, temp_dir):
+    def test_whisper_transcribe(self, mock_cuda, temp_dir):
         """Test Whisper transcription."""
-        # Mock whisper model
+        # Mock whisper module to avoid NumPy 2.2 compatibility issues
+        mock_whisper = Mock()
         mock_model = Mock()
         mock_result = {
             'text': 'Test transcription',
             'segments': [{'start': 0, 'end': 1, 'text': 'Test transcription'}]
         }
         mock_model.transcribe.return_value = mock_result
-        mock_load_model.return_value = mock_model
-        
-        engine = WhisperEngine()
-        
-        # Create a dummy audio file
-        audio_file = temp_dir / "test.wav"
-        audio_file.write_bytes(b"dummy audio data")
-        
-        result = engine.transcribe(str(audio_file))
-        
-        assert result['text'] == 'Test transcription'
-        assert result['method'] == 'whisper'
-        assert 'confidence' in result
+        mock_whisper.load_model.return_value = mock_model
+
+        with patch('speech.engines.whisper', mock_whisper, create=True):
+            config = {'force_cpu': False}
+            engine = WhisperEngine(config=config)
+
+            # Create a dummy audio file
+            audio_file = temp_dir / "test.wav"
+            audio_file.write_bytes(b"dummy audio data")
+
+            result = engine.transcribe(str(audio_file))
+
+            assert result['text'] == 'Test transcription'
+            assert result['method'] == 'whisper'
+            assert 'confidence' in result
 
 
 class TestGoogleSpeechEngine:

@@ -28,6 +28,7 @@ def mock_all_gui_dependencies():
          patch('gui.main_window.HotkeyManager') as mock_hotkey_mgr, \
          patch('gui.main_window.AutoPasteManager') as mock_autopaste, \
          patch('gui.main_window.HealthMonitor') as mock_health, \
+         patch('gui.main_window.TrayManager') as mock_tray, \
          patch('gui.main_window.threading.Thread') as mock_thread:
 
         # Setup mock returns
@@ -69,6 +70,10 @@ def mock_all_gui_dependencies():
         mock_health_instance = Mock()
         mock_health.return_value = mock_health_instance
 
+        mock_tray_instance = Mock()
+        mock_tray_instance.is_available.return_value = True
+        mock_tray.return_value = mock_tray_instance
+
         mock_root = Mock()
         mock_tk.return_value = mock_root
 
@@ -91,6 +96,8 @@ def mock_all_gui_dependencies():
             'autopaste_instance': mock_autopaste_instance,
             'health': mock_health,
             'health_instance': mock_health_instance,
+            'tray': mock_tray,
+            'tray_instance': mock_tray_instance,
             'root': mock_root,
             'thread': mock_thread
         }
@@ -178,6 +185,9 @@ class TestRecordingWorkflow:
         app.status_label = Mock()
         app.recording_progress = {'value': 0}
         app.root = Mock()  # Mock root for .after() calls
+        app.audio_level_canvas = Mock()
+        app.audio_level_canvas.winfo_width.return_value = 100  # Return valid canvas width
+        app.tray_manager = Mock()  # Mock tray manager
 
         # Start recording
         app._toggle_recording()
@@ -255,9 +265,11 @@ class TestRecordingWorkflow:
         # Try to start recording
         app._start_recording()
 
-        # Verify error was shown
+        # Verify error was shown with formatted error message
         mock_showerror.assert_called_once()
-        assert "No speech recognition engine available" in mock_showerror.call_args[0][1]
+        # Check for key parts of the formatted error message
+        error_message = mock_showerror.call_args[0][1]
+        assert "speech recognition engine" in error_message.lower() or "speech engine" in error_message.lower()
 
         # Verify recording did not start
         assert app.is_recording == False
@@ -281,9 +293,11 @@ class TestRecordingWorkflow:
         # Try to start recording
         app._start_recording()
 
-        # Verify error was shown
+        # Verify error was shown with formatted error message
         mock_showerror.assert_called_once()
-        assert "No audio recording method available" in mock_showerror.call_args[0][1]
+        # Check for key parts of the formatted error message
+        error_message = mock_showerror.call_args[0][1]
+        assert "audio recording method" in error_message.lower() or "audio" in error_message.lower()
 
         # Verify recording did not start
         assert app.is_recording == False
@@ -344,6 +358,9 @@ class TestTranscriptionDisplay:
         app.status_label = Mock()
         app.recording_progress = {'value': 0}
         app.is_recording = True
+        app.audio_level_canvas = Mock()
+        app.audio_level_canvas.winfo_width.return_value = 100  # Return valid canvas width
+        app.tray_manager = Mock()  # Mock tray manager
 
         # Update progress with low audio level
         app._update_progress_bar(5.0, audio_level=200)  # Low level
@@ -369,6 +386,9 @@ class TestTranscriptionDisplay:
         app.status_label = Mock()
         app.recording_progress = {'value': 0}
         app.is_recording = True
+        app.audio_level_canvas = Mock()
+        app.audio_level_canvas.winfo_width.return_value = 100  # Return valid canvas width
+        app.tray_manager = Mock()  # Mock tray manager
 
         # Update progress with good audio level
         app._update_progress_bar(5.0, audio_level=2000)  # Good level
@@ -394,6 +414,9 @@ class TestTranscriptionDisplay:
         app.status_label = Mock()
         app.recording_progress = {'value': 0}
         app.is_recording = True
+        app.audio_level_canvas = Mock()
+        app.audio_level_canvas.winfo_width.return_value = 100  # Return valid canvas width
+        app.tray_manager = Mock()  # Mock tray manager
 
         # Update progress with too loud audio level
         app._update_progress_bar(5.0, audio_level=6000)  # Too loud

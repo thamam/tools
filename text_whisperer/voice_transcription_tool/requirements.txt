@@ -17,11 +17,12 @@ pyaudio>=0.2.14
 
 # Speech recognition engines (at least one required)
 openai-whisper>=20231117
+faster-whisper>=0.10.0,<1.0  # CTranslate2-optimized Whisper (4x faster); v1.0+ requires cuDNN9-only CTranslate2 builds
 SpeechRecognition>=3.10.0
 
 # Additional dependencies
 torch>=1.9.0
-numpy>=1.21.0
+numpy>=1.21.0,<2.1  # <2.1 required for Numba compatibility (used by Whisper)
 requests>=2.25.0
 
 # Audio feedback (currently used)
@@ -29,6 +30,10 @@ pygame>=2.0.0  # For audio playback and feedback sounds
 
 # Resource monitoring (optional but recommended)
 psutil>=5.9.0  # For resource monitoring
+
+# System tray and notifications (v2.1)
+pystray>=0.19.0  # System tray icon and menu
+pillow>=9.0.0  # Icon generation for system tray
 
 # Note: pyautogui removed due to Qt threading conflicts
 # Use xdotool on Linux instead: sudo apt install xdotool

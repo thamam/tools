@@ -13,6 +13,8 @@ import os
 import fcntl
 import signal
 import atexit
+import subprocess
+import re
 from pathlib import Path
 
 # Add the project root to Python path
@@ -89,6 +91,61 @@ def parse_args():
     return parser.parse_args()
 
 
+
+def ensure_display_env() -> bool:
+    """Ensure DISPLAY environment variable is set for GUI/pynput.
+
+    This is critical for pynput to work when started via systemd, autostart, or SSH.
+    Attempts to auto-detect DISPLAY from running X sessions, with fallback to common values.
+
+    Returns:
+        bool: True if DISPLAY is set (either already present or successfully detected),
+              False if DISPLAY could not be set (will prevent GUI startup)
+    """
+    logger = logging.getLogger(__name__)
+
+    if 'DISPLAY' in os.environ:
+        logger.info(f"DISPLAY already set: {os.environ['DISPLAY']}")
+        return True
+
+    logger.warning("DISPLAY environment variable not set, attempting auto-detection...")
+
+    # Method 1: Try to detect from running X server processes
+    try:
+        result = subprocess.run(
+            ['ps', 'aux'],
+            capture_output=True,
+            text=True,
+            timeout=2
+        )
+        # Look for DISPLAY=:X patterns in process list
+        import re
+        match = re.search(r'DISPLAY=:(\d+)', result.stdout)
+        if match:
+            display = f':{match.group(1)}'
+            os.environ['DISPLAY'] = display
+            logger.info(f"Auto-detected DISPLAY={display} from running X session")
+            return True
+    except Exception as e:
+        logger.debug(f"Failed to auto-detect DISPLAY from ps: {e}")
+
+    # Method 2: Check for X11 socket files and use common display numbers
+    for display_num in ['1', '0']:
+        socket_path = f'/tmp/.X11-unix/X{display_num}'
+        if os.path.exists(socket_path):
+            display = f':{display_num}'
+            os.environ['DISPLAY'] = display
+            logger.info(f"Using fallback DISPLAY={display} (found X11 socket: {socket_path})")
+            return True
+
+    logger.error(
+        "Could not set DISPLAY environment variable. "
+        "pynput (hotkeys) and GUI will not work. "
+        "Please ensure X11 is running or set DISPLAY manually."
+    )
+    return False
+
+
 def main():
     """Main entry point for the Voice Transcription Tool."""
     global app_instance
@@ -102,7 +159,20 @@ def main():
         setup_logging(level=log_level)
         logger = logging.getLogger(__name__)
         logger.info("=== Voice Transcription Tool Starting ===")
-        
+
+        # Ensure DISPLAY environment is set (critical for pynput and GUI)
+        if not ensure_display_env():
+            print("ERROR: Cannot start GUI - DISPLAY environment not available")
+            print("This typically happens when:")
+            print("  - Running via SSH without X11 forwarding")
+            print("  - Running as systemd service without proper environment")
+            print("  - X11 server is not running")
+            print("\nSolutions:")
+            print("  - Set DISPLAY manually: export DISPLAY=:0")
+            print("  - Run from a terminal within the X session")
+            print("  - Enable X11 forwarding if using SSH: ssh -X user@host")
+            return 1
+
         # Acquire process lock to prevent multiple instances
         if not acquire_process_lock():
             print("ERROR: Another instance of Voice Transcription Tool is already running!")

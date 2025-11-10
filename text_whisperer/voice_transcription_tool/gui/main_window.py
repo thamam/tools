@@ -22,6 +22,8 @@ from speech.engines import SpeechEngineManager
 from utils.hotkeys import HotkeyManager
 from utils.autopaste import AutoPasteManager
 from utils.health_monitor import HealthMonitor
+from utils.tray_manager import TrayManager
+from utils.error_messages import format_audio_error, format_system_error
 
 try:
     import pyperclip
@@ -54,7 +56,7 @@ class VoiceTranscriptionApp:
             channels=self.config.get('audio_channels', 1)
         )
         self.device_manager = AudioDeviceManager()
-        self.speech_manager = SpeechEngineManager()
+        self.speech_manager = SpeechEngineManager(config=self.config.get_all())
         self.hotkey_manager = HotkeyManager()
 
         # Initialize audio feedback
@@ -62,6 +64,9 @@ class VoiceTranscriptionApp:
 
         # Initialize auto-paste manager
         self.autopaste_manager = AutoPasteManager()
+
+        # Initialize tray manager (must be after GUI is created)
+        self.tray_manager = None
 
         # Load saved engine preference
         saved_engine = self.config.get('current_engine', '')
@@ -72,6 +77,8 @@ class VoiceTranscriptionApp:
         self.is_recording = False
         self.recording_start_time = None
         self.shutdown_requested = False  # Flag for clean thread shutdown
+        self.banner_pulse_state = False  # For pulsing recording banner animation
+        self._is_hiding_to_tray = False  # Flag to prevent recursion when hiding to tray
 
         # Queues for threading
         self.audio_queue = queue.Queue()
@@ -95,6 +102,10 @@ class VoiceTranscriptionApp:
         )
         self.health_monitor.start()
 
+        # Initialize tray manager after GUI is created
+        self.tray_manager = TrayManager(self)
+        self.tray_manager.start()
+
         # Initial status log
         self.logger.info(f"Audio method: {self.audio_recorder.get_audio_method()}")
         self.logger.info(f"Speech engine: {self.speech_manager.get_current_engine()}")
@@ -104,8 +115,8 @@ class VoiceTranscriptionApp:
         """Create simple single-window GUI."""
         self.root = tk.Tk()
         self.root.title("Voice Transcription Tool")
-        self.root.geometry("700x500")
-        self.root.minsize(600, 400)
+        self.root.geometry("750x600")  # Increased to show all buttons
+        self.root.minsize(650, 550)  # Ensure buttons always visible
 
         # Configure styling
         style = ttk.Style()
@@ -114,6 +125,17 @@ class VoiceTranscriptionApp:
         # Main container
         main_frame = ttk.Frame(self.root, padding="20")
         main_frame.pack(fill="both", expand=True)
+
+        # Recording banner (hidden by default)
+        self.recording_banner = tk.Label(
+            main_frame,
+            text="● RECORDING",
+            font=("Arial", 14, "bold"),
+            background="#FF0000",
+            foreground="white",
+            pady=8
+        )
+        # Don't pack yet - will be shown during recording
 
         # Title
         title_label = ttk.Label(main_frame, text="🎤 Voice Transcription",
@@ -134,11 +156,30 @@ class VoiceTranscriptionApp:
                                        command=self._toggle_recording)
         self.record_button.pack(pady=15, ipadx=20, ipady=10)
 
-        # Progress bar
+        # Progress bar (time elapsed)
         self.recording_progress = ttk.Progressbar(main_frame, mode='determinate',
                                                  length=400)
-        self.recording_progress.pack(pady=(0, 20))
+        self.recording_progress.pack(pady=(0, 10))
         self.recording_progress['maximum'] = self.config.get('record_seconds', 30)
+
+        # Audio level meter frame
+        meter_frame = ttk.Frame(main_frame)
+        meter_frame.pack(fill="x", pady=(0, 10))
+
+        ttk.Label(meter_frame, text="Audio Level:", font=("Arial", 9)).pack(anchor="w")
+
+        # Audio level meter canvas (visual meter with color zones)
+        self.audio_level_canvas = tk.Canvas(
+            meter_frame,
+            height=20,
+            background="#E0E0E0",
+            highlightthickness=1,
+            highlightbackground="#999999"
+        )
+        self.audio_level_canvas.pack(fill="x", pady=(2, 0))
+
+        # Draw zone markers (low/good/loud thresholds)
+        self._draw_audio_meter_zones()
 
         # Transcription display
         text_label = ttk.Label(main_frame, text="Transcription:",
@@ -162,8 +203,51 @@ class VoiceTranscriptionApp:
         ttk.Button(button_frame, text="⚙️ Settings",
                   command=self._open_settings).pack(side="right")
 
-        # Bind close event
-        self.root.protocol("WM_DELETE_WINDOW", self._on_closing)
+        # Keyboard shortcuts hint
+        shortcuts_hint = ttk.Label(
+            main_frame,
+            text="Shortcuts: Ctrl+R (record) | Ctrl+C (copy) | Ctrl+Q (quit) | Esc (stop)",
+            font=("Arial", 8),
+            foreground="gray"
+        )
+        shortcuts_hint.pack(pady=(10, 0))
+
+        # Bind close event (hides to tray if available, otherwise quits)
+        self.root.protocol("WM_DELETE_WINDOW", self._on_window_close_button)
+
+        # Bind minimize event to hide to tray (if tray available)
+        self.root.bind('<Unmap>', self._on_window_state_changed)
+
+        # Setup keyboard shortcuts
+        self._setup_keyboard_shortcuts()
+
+    def _draw_audio_meter_zones(self):
+        """Draw background color zones for audio level meter."""
+        # Color zones: low (yellow), good (green), loud (red)
+        # RMS thresholds: 0-500 (yellow), 500-5000 (green), 5000+ (red)
+        width = 400  # Approximate canvas width
+        height = 20
+
+        # Zone boundaries (normalized to 0-10000 RMS scale)
+        low_threshold = 0.05  # 500/10000
+        good_threshold = 0.5  # 5000/10000
+
+        # Draw zones
+        low_x = int(width * low_threshold)
+        good_x = int(width * good_threshold)
+
+        self.audio_level_canvas.create_rectangle(
+            0, 0, low_x, height,
+            fill="#FFD700", outline="", tags="zone"
+        )  # Yellow zone
+        self.audio_level_canvas.create_rectangle(
+            low_x, 0, good_x, height,
+            fill="#90EE90", outline="", tags="zone"
+        )  # Green zone
+        self.audio_level_canvas.create_rectangle(
+            good_x, 0, width, height,
+            fill="#FFB6C1", outline="", tags="zone"
+        )  # Light red zone
     
     def _clear_transcription(self):
         """Clear the transcription display."""
@@ -173,6 +257,26 @@ class VoiceTranscriptionApp:
     
     
     
+    def _setup_keyboard_shortcuts(self):
+        """Setup GUI keyboard shortcuts."""
+        # Ctrl+R - Toggle recording
+        self.root.bind('<Control-r>', lambda e: self._toggle_recording())
+        self.root.bind('<Control-R>', lambda e: self._toggle_recording())
+
+        # Ctrl+C - Copy to clipboard (in transcription text area)
+        # Note: This is default behavior in ScrolledText, but we add our own too
+        self.root.bind('<Control-c>', lambda e: self._copy_to_clipboard() if self.transcription_text.tag_ranges(tk.SEL) == () else None)
+        self.root.bind('<Control-C>', lambda e: self._copy_to_clipboard() if self.transcription_text.tag_ranges(tk.SEL) == () else None)
+
+        # Ctrl+Q - Quit application
+        self.root.bind('<Control-q>', lambda e: self._on_closing())
+        self.root.bind('<Control-Q>', lambda e: self._on_closing())
+
+        # Escape - Stop recording (if active)
+        self.root.bind('<Escape>', lambda e: self._stop_recording() if self.is_recording else None)
+
+        self.logger.info("Keyboard shortcuts enabled: Ctrl+R (record), Ctrl+C (copy), Ctrl+Q (quit), Esc (stop)")
+
     def _setup_hotkeys(self):
         """Setup global hotkeys."""
         hotkey_combination = self.config.get('hotkey_combination', 'alt+d')
@@ -198,15 +302,18 @@ class VoiceTranscriptionApp:
     def _start_recording(self):
         """Start audio recording."""
         if not self.speech_manager.get_current_engine():
-            error_msg = "No speech recognition engine available!"
-            self.logger.error(error_msg)
-            messagebox.showerror("Error", error_msg)
+            # Use format_engine_error for speech engine not available
+            from utils.error_messages import format_engine_error
+            error_title, error_msg = format_engine_error('not_available')
+            self.logger.error("No speech recognition engine available")
+            messagebox.showerror(error_title, error_msg)
             return
 
         if not self.audio_recorder.is_available():
-            error_msg = "No audio recording method available!"
-            self.logger.error(error_msg)
-            messagebox.showerror("Error", error_msg)
+            # Use format_audio_error for audio method not available
+            error_title, error_msg = format_audio_error('no_method')
+            self.logger.error("No audio recording method available")
+            messagebox.showerror(error_title, error_msg)
             return
 
         # Capture active window for auto-paste (before changing focus)
@@ -219,6 +326,15 @@ class VoiceTranscriptionApp:
         self.status_label.configure(text="Recording...", foreground="red")
         self.recording_progress['value'] = 0
         self.logger.info("Recording started")
+
+        # Show recording banner
+        self.recording_banner.pack(fill="x", pady=(0, 10), before=self.status_label.master)
+        self._pulse_recording_banner()
+
+        # Update tray icon and show notification
+        if self.tray_manager:
+            self.tray_manager.set_recording_state(True)
+            self.tray_manager.notify_recording_started()
 
         # Play start feedback sound
         self.audio_feedback.play_start()
@@ -238,6 +354,14 @@ class VoiceTranscriptionApp:
         self.status_label.configure(text="Processing...", foreground="orange")
         self.recording_progress['value'] = 0
         self.logger.info("Recording stopped")
+
+        # Hide recording banner
+        self.recording_banner.pack_forget()
+
+        # Update tray icon and show notification
+        if self.tray_manager:
+            self.tray_manager.set_recording_state(False)
+            self.tray_manager.notify_recording_stopped()
 
         # Play stop feedback sound
         self.audio_feedback.play_stop()
@@ -263,22 +387,20 @@ class VoiceTranscriptionApp:
 
                 self.logger.error(f"Recording failed ({error_type}): {error_msg}")
 
-                # Show appropriate error message based on type
+                # Map error type to formatted error message
+                error_type_map = {
+                    'silent_audio': 'silent',
+                    'device_error': 'device',
+                    'no_frames': 'no_frames'
+                }
+                audio_error_type = error_type_map.get(error_type, 'recording')
+                error_title, formatted_msg = format_audio_error(audio_error_type)
+
+                # Show appropriate error message (warning for silent audio, error for others)
                 if error_type == 'silent_audio':
-                    self.root.after(0, lambda: messagebox.showwarning(
-                        "No Speech Detected",
-                        error_msg
-                    ))
-                elif error_type == 'device_error':
-                    self.root.after(0, lambda: messagebox.showerror(
-                        "Microphone Error",
-                        error_msg
-                    ))
+                    self.root.after(0, lambda: messagebox.showwarning(error_title, formatted_msg))
                 else:
-                    self.root.after(0, lambda: messagebox.showerror(
-                        "Recording Error",
-                        error_msg
-                    ))
+                    self.root.after(0, lambda: messagebox.showerror(error_title, formatted_msg))
 
         except Exception as e:
             self.logger.error(f"Recording thread error: {e}")
@@ -340,6 +462,13 @@ class VoiceTranscriptionApp:
                     text=f"Recording: {elapsed_str}/{max_str} ({level_status})",
                     foreground=level_color
                 )
+
+            # Update audio level meter
+            self._update_audio_meter(audio_level)
+
+            # Update tray notifications with audio level
+            if self.tray_manager:
+                self.tray_manager.update_recording_progress(elapsed_time, audio_level)
     
     def _update_recording_progress(self):
         """Update recording progress bar (fallback when no audio level available)."""
@@ -350,12 +479,62 @@ class VoiceTranscriptionApp:
             # Schedule next update
             self.root.after(100, self._update_recording_progress)
     
+    def _pulse_recording_banner(self):
+        """Animate the recording banner with pulsing effect."""
+        if not self.is_recording:
+            return
+
+        # Toggle between bright and dark red
+        if self.banner_pulse_state:
+            self.recording_banner.configure(background="#CC0000")  # Dark red
+        else:
+            self.recording_banner.configure(background="#FF0000")  # Bright red
+
+        self.banner_pulse_state = not self.banner_pulse_state
+
+        # Schedule next pulse (500ms cycle = 1Hz pulsing)
+        self.root.after(500, self._pulse_recording_banner)
+
+    def _update_audio_meter(self, audio_level):
+        """Update the visual audio level meter bar."""
+        # Clear previous meter bar
+        self.audio_level_canvas.delete("meter")
+
+        # Normalize audio level to canvas width (0-10000 RMS → 0-400px)
+        canvas_width = self.audio_level_canvas.winfo_width()
+        if canvas_width <= 1:  # Canvas not yet rendered
+            canvas_width = 400
+
+        # Clamp and scale
+        max_rms = 10000
+        normalized_level = min(audio_level / max_rms, 1.0)
+        bar_width = int(canvas_width * normalized_level)
+
+        # Color code the meter bar
+        if audio_level < 500:
+            bar_color = "#FFA500"  # Orange (low)
+        elif audio_level > 5000:
+            bar_color = "#FF0000"  # Red (too loud)
+        else:
+            bar_color = "#00CC00"  # Green (good)
+
+        # Draw meter bar
+        if bar_width > 0:
+            self.audio_level_canvas.create_rectangle(
+                0, 0, bar_width, 20,
+                fill=bar_color, outline="", tags="meter"
+            )
+
     def _reset_recording_ui(self):
         """Reset recording UI state."""
         self.is_recording = False
         self.recording_start_time = None
         self.record_button.configure(text="🎤 Start Recording")
         self.recording_progress['value'] = 0
+
+        # Hide banner and clear audio meter
+        self.recording_banner.pack_forget()
+        self.audio_level_canvas.delete("meter")
     
     # Continue in next part... (methods like _start_background_threads, _transcription_worker, etc.)
     
@@ -456,6 +635,92 @@ class VoiceTranscriptionApp:
                 else:
                     self.logger.info(f"{name} thread finished cleanly")
 
+    def restore_window(self):
+        """
+        Restore window from minimized/withdrawn state.
+
+        This method properly restores the window by:
+        1. Deiconifying (un-minimizing) the window
+        2. Lifting it to the top of the window stack
+        3. Forcing focus to ensure it's active
+
+        Called by tray icon's "Show Window" action.
+        """
+        try:
+            self.root.deiconify()  # Restore from minimized/withdrawn state
+            self.root.lift()  # Bring window to front
+            self.root.focus_force()  # Force focus to window
+            self.logger.debug("Window restored from tray")
+        except Exception as e:
+            self.logger.error(f"Error restoring window: {e}")
+
+    def hide_to_tray(self):
+        """
+        Hide window to system tray.
+
+        Completely withdraws the window (not just minimize to taskbar).
+        This is the proper system tray behavior like Dropbox/NoMachine.
+
+        Called when:
+        - User clicks [X] close button (if tray mode enabled)
+        - User clicks minimize button (if tray mode enabled)
+        - User selects "Hide Window" from tray menu
+        """
+        try:
+            self._is_hiding_to_tray = True
+            self.root.withdraw()  # Completely hide window
+            self.logger.debug("Window hidden to tray")
+        except Exception as e:
+            self.logger.error(f"Error hiding window to tray: {e}")
+        finally:
+            # Reset flag after a short delay
+            self.root.after(100, lambda: setattr(self, '_is_hiding_to_tray', False))
+
+    def _on_window_close_button(self):
+        """
+        Handle window close button ([X]) click.
+
+        Behavior depends on tray availability:
+        - If tray available: Hide to tray (like Dropbox/NoMachine)
+        - If no tray: Quit application normally
+
+        This enables true system tray behavior where [X] doesn't quit.
+        """
+        if self.tray_manager and self.tray_manager.is_available():
+            # Tray mode: hide window instead of quitting
+            self.logger.info("Close button clicked - hiding to tray")
+            self.hide_to_tray()
+        else:
+            # Normal mode: quit application
+            self.logger.info("Close button clicked - quitting application")
+            self._on_closing()
+
+    def _on_window_state_changed(self, event=None):
+        """
+        Handle window state changes (iconify/minimize).
+
+        If window is minimized and tray is available, hide to tray instead.
+        Uses a short delay to avoid race conditions with the iconify event.
+        """
+        if not self._is_hiding_to_tray and self.tray_manager and self.tray_manager.is_available():
+            # Check state after a short delay to avoid race conditions
+            self.root.after(10, self._check_and_hide_if_iconified)
+
+    def _check_and_hide_if_iconified(self):
+        """
+        Check if window is iconified (minimized) and hide to tray if so.
+
+        This is called after a delay from _on_window_state_changed to ensure
+        the window state has stabilized.
+        """
+        try:
+            if not self._is_hiding_to_tray and self.root.state() == 'iconic':
+                self.logger.info("Window minimized - hiding to tray")
+                self.hide_to_tray()
+        except Exception as e:
+            # Ignore errors (window might be destroyed)
+            pass
+
     def _on_closing(self):
         """Handle application closing."""
         self.logger.info("Application closing...")
@@ -486,6 +751,10 @@ class VoiceTranscriptionApp:
 
         if hasattr(self, 'health_monitor'):
             self.health_monitor.stop()
+
+        # Stop tray icon
+        if hasattr(self, 'tray_manager') and self.tray_manager:
+            self.tray_manager.stop()
 
         self.root.destroy()
     
@@ -541,26 +810,18 @@ class VoiceTranscriptionApp:
 
         # Check if transcription succeeded
         if not result.get('success', False):
+            # Get user-friendly formatted error message
+            error_title, error_message = self.speech_manager.format_transcription_error(result)
+
+            # Display error to user
+            messagebox.showerror(error_title, error_message)
+
+            # Show tray notification for failure
+            if self.tray_manager and self.tray_manager.is_available():
+                self.tray_manager.notify_transcription_complete("", success=False)
+
+            # Log technical error details
             error_msg = result.get('error', 'Transcription failed')
-
-            # Check if both engines failed
-            if result.get('fallback_failed'):
-                primary = result.get('primary_engine', 'unknown')
-                fallback = result.get('fallback_engine', 'unknown')
-                fallback_error = result.get('fallback_error', 'Unknown error')
-
-                detailed_error = f"Both speech engines failed:\n\n"
-                detailed_error += f"Primary ({primary}): {error_msg}\n"
-                detailed_error += f"Fallback ({fallback}): {fallback_error}\n\n"
-                detailed_error += "Please check:\n"
-                detailed_error += "• Audio quality (speak clearly, reduce background noise)\n"
-                detailed_error += "• Microphone volume is adequate\n"
-                detailed_error += "• Internet connection (for Google Speech)"
-
-                messagebox.showerror("Transcription Failed", detailed_error)
-            else:
-                messagebox.showerror("Transcription Error", error_msg)
-
             self.logger.error(f"Transcription failed: {error_msg}")
             return
 
@@ -571,6 +832,10 @@ class VoiceTranscriptionApp:
             self.logger.warning("Transcription returned empty text")
             messagebox.showwarning("Empty Result", "Transcription completed but no text was detected.")
             return
+
+        # Show tray notification with transcribed text
+        if self.tray_manager and self.tray_manager.is_available():
+            self.tray_manager.notify_transcription_complete(text, success=True)
 
         # Log success with fallback info if applicable
         if result.get('fallback_success'):
@@ -782,8 +1047,12 @@ class VoiceTranscriptionApp:
         available_engines = self.speech_manager.get_available_engines()
 
         for engine in available_engines:
-            if engine == 'whisper':
-                ttk.Radiobutton(engine_frame, text="Whisper (Local, High Quality)",
+            if engine == 'faster-whisper':
+                ttk.Radiobutton(engine_frame, text="Faster-Whisper (Local, GPU-Accelerated)",
+                                variable=engine_var, value="faster-whisper",
+                                command=_change_engine).pack(anchor="w")
+            elif engine == 'whisper':
+                ttk.Radiobutton(engine_frame, text="Whisper (Local, HQ Mode)",
                                 variable=engine_var, value="whisper",
                                 command=_change_engine).pack(anchor="w")
             elif engine == 'google':
@@ -802,6 +1071,94 @@ class VoiceTranscriptionApp:
             status_icon = "✅" if info['available'] else "❌"
             status_text = f"{status_icon} {name.capitalize()}: {'Available' if info['available'] else 'Not available'}"
             ttk.Label(engine_frame, text=status_text, font=("Arial", 9)).pack(anchor="w")
+
+        # Model size selector (for Whisper engines)
+        model_frame = ttk.LabelFrame(main_frame, text="Whisper Model Size", padding="10")
+        model_frame.pack(fill="x", pady=(0, 15))
+
+        def _change_model_size():
+            """Auto-save model size change and reload model."""
+            new_model_size = model_var.get()
+            old_model_size = self.config.get('whisper_model_size', 'base')
+
+            if new_model_size != old_model_size:
+                # Show loading dialog
+                loading_dialog = tk.Toplevel(settings_window)
+                loading_dialog.title("Loading Model")
+                loading_dialog.geometry("400x150")
+                loading_dialog.transient(settings_window)
+                loading_dialog.grab_set()
+
+                loading_frame = ttk.Frame(loading_dialog, padding="20")
+                loading_frame.pack(fill="both", expand=True)
+
+                ttk.Label(loading_frame, 
+                         text=f"Loading {new_model_size} model...",
+                         font=("Arial", 11)).pack(pady=(10, 20))
+                
+                progress_bar = ttk.Progressbar(loading_frame, mode='indeterminate', length=300)
+                progress_bar.pack(pady=10)
+                progress_bar.start(10)
+
+                status_var = tk.StringVar(value="Initializing...")
+                status_lbl = ttk.Label(loading_frame, textvariable=status_var, 
+                                      font=("Arial", 9), foreground="gray")
+                status_lbl.pack(pady=5)
+
+                def reload_model():
+                    """Reload models in background thread."""
+                    try:
+                        status_var.set("Saving configuration...")
+                        self.config.set('whisper_model_size', new_model_size)
+                        self.config.save()
+
+                        status_var.set(f"Loading {new_model_size} model...")
+                        # Reinitialize speech manager with new model size
+                        self.speech_manager = SpeechEngineManager(config=self.config.get_all())
+                        
+                        self.logger.info(f"Model size changed to: {new_model_size}")
+                        
+                        # Close loading dialog on main thread
+                        self.root.after(0, loading_dialog.destroy)
+                        self.root.after(0, lambda: show_status(f"✓ Model changed to {new_model_size}"))
+                    except Exception as e:
+                        self.logger.error(f"Failed to reload model: {e}")
+                        self.root.after(0, loading_dialog.destroy)
+                        self.root.after(0, lambda: show_status(f"✗ Failed to reload model", "red"))
+                        # Revert to old model size
+                        self.root.after(0, lambda: model_var.set(old_model_size))
+
+                # Start reload in background thread
+                import threading
+                threading.Thread(target=reload_model, daemon=True).start()
+
+        current_model = self.config.get('whisper_model_size', 'base')
+        model_var = tk.StringVar(value=current_model)
+
+        ttk.Label(model_frame, text="Choose model size (speed vs accuracy trade-off):",
+                 font=("Arial", 9)).pack(anchor="w", pady=(0, 10))
+
+        model_options = [
+            ('tiny', 'Tiny - Fastest, lowest quality (~1-2s for 30s audio)'),
+            ('base', 'Base - Balanced, recommended (~3-5s for 30s audio)'),
+            ('small', 'Small - Better quality (~8-12s for 30s audio)'),
+            ('medium', 'Medium - High quality (~25-35s for 30s audio)'),
+            ('large', 'Large - Best quality (~60-90s for 30s audio)')
+        ]
+
+        for value, label in model_options:
+            ttk.Radiobutton(model_frame, text=label, variable=model_var, value=value,
+                           command=_change_model_size).pack(anchor="w")
+
+        # Note about GPU acceleration
+        current_engine = engine_var.get()
+        if current_engine in ['whisper', 'faster-whisper']:
+            gpu_note = "\n💡 With GPU: Times are 3-5x faster"
+        else:
+            gpu_note = "\n⚠️ Model size applies to Whisper engines only"
+        
+        ttk.Label(model_frame, text=gpu_note,
+                 font=("Arial", 8), foreground="gray").pack(anchor="w", pady=(5, 0))
 
         # Hotkey configuration
         hotkey_frame = ttk.LabelFrame(main_frame, text="Hotkey", padding="10")
