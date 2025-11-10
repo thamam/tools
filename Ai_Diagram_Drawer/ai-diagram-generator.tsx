@@ -6,7 +6,7 @@ import mermaid from 'mermaid';
 mermaid.initialize({
   startOnLoad: false,
   theme: 'default',
-  securityLevel: 'loose',
+  securityLevel: 'strict', // Prevent XSS attacks - blocks JavaScript execution in SVG
   fontFamily: 'system-ui, -apple-system, sans-serif'
 });
 
@@ -661,9 +661,11 @@ const Textarea = ({ value, onChange, placeholder, rows = 3, className = '' }) =>
 
 const Toast = ({ message, type, onClose }) => {
   useEffect(() => {
-    const timer = setTimeout(onClose, 5000);
+    const timer = setTimeout(() => {
+      onClose?.();
+    }, 5000);
     return () => clearTimeout(timer);
-  }, [onClose]);
+  }, []); // Empty deps - timer set once on mount
 
   const bgColor = type === 'error' ? 'bg-red-500' : 'bg-green-500';
   const Icon = type === 'error' ? AlertCircle : CheckCircle;
@@ -932,15 +934,17 @@ const AIDiagramGenerator = () => {
     }
   }, [generatedDiagram, showPreview]);
 
-  // Update usage stats
+  // Update usage stats (pause during generation to reduce overhead)
   useEffect(() => {
+    if (isGenerating) return; // Don't poll during active generation
+
     const updateStats = () => {
       setUsageStats(UsageTracker.getInstance().getStats());
     };
-    
+
     const interval = setInterval(updateStats, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [isGenerating]);
 
   const handleApiKeyChange = (providerId, key) => {
     const newKeys = { ...apiKeys, [providerId]: key };
