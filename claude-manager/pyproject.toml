@@ -5,13 +5,14 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "claude-seed"
 version = "0.1.0"
-description = "CLI seeder for Claude Code project initialization"
+description = "CLI tool for initializing Claude Code projects with registry-based sub-agents, commands, and MCP servers"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
     {name = "Your Name", email = "your.email@example.com"}
 ]
+keywords = ["claude", "ai", "cli", "mcp", "code-assistant", "project-seeder"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -20,6 +21,8 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Code Generators",
+    "Topic :: Utilities",
 ]
 dependencies = [
     "click>=8.0.0,<9.0.0",

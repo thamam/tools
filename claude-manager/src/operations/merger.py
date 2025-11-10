@@ -152,8 +152,24 @@ class JSONMerger:
                         conflicts,
                         current_path
                     )
+                elif isinstance(target[key], list) and isinstance(value, list):
+                    # Both are lists - concatenate and deduplicate
+                    combined = target[key] + value
+                    # Deduplicate while preserving order (for primitives)
+                    seen = set()
+                    deduplicated = []
+                    for item in combined:
+                        # For unhashable items (dicts/lists), skip deduplication
+                        if isinstance(item, (dict, list)):
+                            deduplicated.append(item)
+                        else:
+                            if item not in seen:
+                                seen.add(item)
+                                deduplicated.append(item)
+                    target[key] = deduplicated
+                    value_sources[path_key] = f"{value_sources.get(path_key, 'unknown')}, {item_name}"
                 else:
-                    # Values are not both dicts - potential conflict
+                    # Values are not both dicts or both lists - potential conflict
                     if target[key] != value:
                         # Record conflict
                         previous_source = value_sources.get(path_key, "unknown")

@@ -1,6 +1,6 @@
 """Tag-based filtering for registry items."""
 
-from typing import List, Set
+from typing import List, Set, Optional
 from src.registry.models import RegistryItem, ItemType
 
 
@@ -119,8 +119,8 @@ class ItemFilter:
     @staticmethod
     def by_version(
         items: List[RegistryItem],
-        min_version: str = None,
-        max_version: str = None
+        min_version: Optional[str] = None,
+        max_version: Optional[str] = None
     ) -> List[RegistryItem]:
         """Filter items by version range.
 
@@ -132,28 +132,25 @@ class ItemFilter:
         Returns:
             Filtered list of items
         """
-        from packaging import version
+        from packaging.version import parse, InvalidVersion
+
+        # Parse min/max versions once before the loop
+        min_ver = parse(min_version) if min_version else None
+        max_ver = parse(max_version) if max_version else None
 
         filtered = []
         for item in items:
             try:
-                item_ver = version.parse(item.version)
-
-                if min_version:
-                    min_ver = version.parse(min_version)
-                    if item_ver < min_ver:
-                        continue
-
-                if max_version:
-                    max_ver = version.parse(max_version)
-                    if item_ver > max_ver:
-                        continue
-
-                filtered.append(item)
-
-            except Exception:
+                item_ver = parse(item.version)
+            except InvalidVersion:
                 # Skip items with invalid versions
                 continue
+
+            if min_ver and item_ver < min_ver:
+                continue
+            if max_ver and item_ver > max_ver:
+                continue
+            filtered.append(item)
 
         return filtered
 

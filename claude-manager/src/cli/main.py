@@ -291,13 +291,13 @@ def init(filter, force, output, dry_run, registry_path):
 
         # Success!
         click.echo("\n✓ Installation complete!")
-        click.echo(f"\nFiles created:")
+        click.echo("\nFiles created:")
         click.echo(f"  - {output}/")
         if mcp_items:
-            click.echo(f"  - .mcp.json")
+            click.echo("  - .mcp.json")
         if required_env_vars or optional_env_vars:
-            click.echo(f"  - .env.example")
-        click.echo(f"  - .claude.lock.json")
+            click.echo("  - .env.example")
+        click.echo("  - .claude.lock.json")
 
         click.echo(f"\nInstalled {len(resolved_items)} items:")
         for item in resolved_items:
@@ -512,9 +512,10 @@ def install(lock_file, verify, registry_path):
             click.echo("\nVerifying file hashes...")
             verification_failed = []
 
+            install_root = Path(".claude")  # Install directory for verification
             for item_name, lock_item in lock.items.items():
                 for file_path, expected_hash in lock_item.files.items():
-                    full_path = Path(file_path)
+                    full_path = install_root / file_path
                     if not full_path.exists():
                         verification_failed.append(f"{file_path}: file not found")
                         continue

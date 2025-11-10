@@ -1,10 +1,11 @@
 """Data models and operations for lock files."""
 
 from dataclasses import dataclass, field
-from typing import Dict
+from typing import Dict, Optional
 from datetime import datetime
 from enum import Enum
 import re
+import hashlib
 
 
 class LockItemType(Enum):
@@ -49,8 +50,41 @@ class LockItem:
             self.type = LockItemType(self.type)
 
     def verify_file_hash(self, file_path: str, expected_hash: str) -> bool:
-        """Verify if file hash matches expected hash."""
-        return self.files.get(file_path) == expected_hash
+        """Compute the file's SHA-256 and compare to expected 'sha256:<hex>'.
+
+        Args:
+            file_path: Path to the file to verify
+            expected_hash: Expected hash in format 'sha256:<hex>'
+
+        Returns:
+            bool: True if file exists and hash matches, False otherwise
+        """
+        try:
+            h = hashlib.sha256()
+            with open(file_path, "rb") as f:
+                for chunk in iter(lambda: f.read(1024 * 1024), b""):
+                    h.update(chunk)
+            actual = f"sha256:{h.hexdigest()}"
+            # Normalize expected to lowercase for robustness
+            return actual == expected_hash.lower()
+        except (FileNotFoundError, IOError):
+            return False
+
+    def verify_all_files(self, base_path: str = "") -> Dict[str, bool]:
+        """Verify hashes for all files in this lock item.
+
+        Args:
+            base_path: Base directory path to prepend to file paths
+
+        Returns:
+            Dict mapping file paths to verification results (True/False)
+        """
+        from pathlib import Path
+        results = {}
+        for file_path, expected_hash in self.files.items():
+            full_path = Path(base_path) / file_path if base_path else Path(file_path)
+            results[file_path] = self.verify_file_hash(str(full_path), expected_hash)
+        return results
 
 
 @dataclass
@@ -100,13 +134,41 @@ class LockFile:
         """Add item to lock file."""
         self.items[name] = lock_item
 
-    def get_item(self, name: str) -> LockItem | None:
+    def get_item(self, name: str) -> Optional[LockItem]:
         """Get lock item by name."""
         return self.items.get(name)
 
     def has_item(self, name: str) -> bool:
         """Check if lock file contains item."""
         return name in self.items
+
+    def remove_item(self, name: str) -> bool:
+        """Remove item from lock file.
+
+        Args:
+            name: Item name to remove
+
+        Returns:
+            bool: True if item was removed, False if not found
+        """
+        if name in self.items:
+            del self.items[name]
+            return True
+        return False
+
+    def verify_all_items(self, base_path: str = "") -> Dict[str, Dict[str, bool]]:
+        """Verify hashes for all files in all lock items.
+
+        Args:
+            base_path: Base directory path to prepend to file paths
+
+        Returns:
+            Nested dict: {item_name: {file_path: verification_result}}
+        """
+        results = {}
+        for item_name, lock_item in self.items.items():
+            results[item_name] = lock_item.verify_all_files(base_path)
+        return results
 
     def to_dict(self) -> Dict:
         """Convert lock file to dictionary for JSON serialization."""

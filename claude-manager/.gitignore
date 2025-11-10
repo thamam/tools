@@ -53,8 +53,8 @@ Thumbs.db
 logs/
 
 # Project specific
-specs/
-.claude-seed/
+# Note: specs/ is intentionally tracked for Spec-Driven Development
+.claude/
 
 # Temporary files
 *.tmp

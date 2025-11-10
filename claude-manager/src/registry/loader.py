@@ -1,6 +1,7 @@
 """Registry metadata loader for parsing YAML files."""
 
 import os
+import json
 from pathlib import Path
 from typing import List, Dict, Optional
 import yaml
@@ -99,7 +100,6 @@ class RegistryLoader:
             if data.get("type") == "mcp":
                 mcp_fragment_path = metadata_path.parent / "mcp-fragment.json"
                 if mcp_fragment_path.exists():
-                    import json
                     with open(mcp_fragment_path, 'r') as f:
                         mcp_fragment = json.load(f)
 
