@@ -41,7 +41,7 @@ def parse_workflow_status(status_file: Path) -> Dict[str, Any]:
     if not status_file.exists():
         return {}
 
-    content = status_file.read_text()
+    content = status_file.read_text(encoding='utf-8', errors='replace')
 
     # Parse project configuration
     project = {}
@@ -96,7 +96,8 @@ def parse_workflow_status(status_file: Path) -> Dict[str, Any]:
                     "file": f"stories/{story_id}.md",
                     "state": "BACKLOG"
                 })
-        except:
+        except (json.JSONDecodeError, ValueError, TypeError) as e:
+            print(f"Warning: Failed to parse STORIES_SEQUENCE: {e}", file=sys.stderr)
             pass
 
     # Parse TODO_STORY and TODO_TITLE
@@ -146,7 +147,8 @@ def parse_workflow_status(status_file: Path) -> Dict[str, Any]:
                     "file": f"stories/{story_id}.md",
                     "state": "DONE"
                 })
-        except:
+        except (json.JSONDecodeError, ValueError, TypeError) as e:
+            print(f"Warning: Failed to parse STORIES_DONE: {e}", file=sys.stderr)
             pass
 
     # Also parse completed stories from Story Backlog section
@@ -174,7 +176,9 @@ def get_file_mtime(file_path: Path) -> Optional[float]:
     """Get file modification time as Unix timestamp."""
     try:
         return file_path.stat().st_mtime
-    except:
+    except (OSError, IOError) as e:
+        # File doesn't exist, no permissions, or other OS error
+        print(f"Warning: Cannot stat {file_path}: {e}", file=sys.stderr)
         return None
 
 
@@ -216,7 +220,7 @@ def find_story_files(project_root: Path) -> List[Dict[str, Any]]:
     for pattern in patterns:
         for story_file in project_root.rglob(pattern):
             try:
-                content = story_file.read_text()
+                content = story_file.read_text(encoding='utf-8', errors='replace')
                 filename = story_file.name
 
                 # Extract story ID from filename

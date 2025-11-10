@@ -79,10 +79,11 @@ class VoiceTranscriptionApp:
         self.shutdown_requested = False  # Flag for clean thread shutdown
         self.banner_pulse_state = False  # For pulsing recording banner animation
         self._is_hiding_to_tray = False  # Flag to prevent recursion when hiding to tray
+        self._tray_hide_lock = threading.Lock()  # Thread-safe lock for tray operations
 
-        # Queues for threading
-        self.audio_queue = queue.Queue()
-        self.transcription_queue = queue.Queue()
+        # Queues for threading (with size limits to prevent memory leaks)
+        self.audio_queue = queue.Queue(maxsize=10)  # Limit pending transcriptions
+        self.transcription_queue = queue.Queue(maxsize=10)  # Limit UI updates
 
         # Track background threads for clean shutdown
         self.transcription_thread = None
@@ -379,7 +380,12 @@ class VoiceTranscriptionApp:
 
             if result.get('success'):
                 self.logger.info("Recording completed")
-                self.audio_queue.put(result['audio_file'])
+                try:
+                    self.audio_queue.put(result['audio_file'], block=False)
+                except queue.Full:
+                    self.logger.warning("Transcription backlog - queue full. Please wait for pending transcriptions.")
+                    self.root.after(0, lambda: self._update_status_label(
+                        "⚠️ Transcription backlog - please wait...", "orange"))
             else:
                 # Handle recording errors with clear user feedback
                 error_msg = result.get('error', 'Recording failed')
@@ -557,7 +563,11 @@ class VoiceTranscriptionApp:
 
                 result = self.speech_manager.transcribe(audio_file)
                 if not self.shutdown_requested:
-                    self.transcription_queue.put(result)
+                    try:
+                        self.transcription_queue.put(result, block=False)
+                    except queue.Full:
+                        self.logger.warning("UI update queue full - dropping transcription result")
+                        # Queue full means UI is overwhelmed, skip this update
 
                 # Clean up temp file
                 try:
@@ -666,15 +676,20 @@ class VoiceTranscriptionApp:
         - User clicks minimize button (if tray mode enabled)
         - User selects "Hide Window" from tray menu
         """
-        try:
+        # Use thread-safe lock to prevent race conditions
+        with self._tray_hide_lock:
+            if self._is_hiding_to_tray:
+                return  # Already hiding, prevent recursion
             self._is_hiding_to_tray = True
+
+        try:
             self.root.withdraw()  # Completely hide window
             self.logger.debug("Window hidden to tray")
         except Exception as e:
             self.logger.error(f"Error hiding window to tray: {e}")
         finally:
-            # Reset flag after a short delay
-            self.root.after(100, lambda: setattr(self, '_is_hiding_to_tray', False))
+            with self._tray_hide_lock:
+                self._is_hiding_to_tray = False
 
     def _on_window_close_button(self):
         """

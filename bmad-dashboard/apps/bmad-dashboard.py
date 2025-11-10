@@ -92,10 +92,13 @@ def read_bmad_state(project_path: Optional[str] = None) -> Dict[str, Any]:
             cmd,
             capture_output=True,
             text=True,
-            check=True
+            check=True,
+            timeout=30  # 30 second timeout to prevent indefinite hangs
         )
 
         return json.loads(result.stdout)
+    except subprocess.TimeoutExpired:
+        raise BMADStateError("State reader timed out after 30 seconds. Check for slow filesystem or very large projects.")
     except subprocess.CalledProcessError as e:
         raise BMADStateError(f"Failed to read state: {e.stderr}") from e
     except json.JSONDecodeError as e:
