@@ -11,9 +11,39 @@ echo
 # The scanner device name is hardcoded because auto-detection is complex in a simple script.
 # This is the device name we discovered for your scanner.
 SCANNER_DEVICE="brother4:bus1;dev6"
-TEMP_DIR="/home/thh3/Downloads/scan_temp"
+OUTPUT_DIR="${HOME}/Downloads"
+TEMP_DIR="${HOME}/Downloads/scan_temp"
+
+# --- Dependency Check ---
+check_dependencies() {
+    local missing_deps=()
+
+    # Check required commands
+    for cmd in scanimage img2pdf tesseract mogrify; do
+        if ! command -v "$cmd" &> /dev/null; then
+            missing_deps+=("$cmd")
+        fi
+    done
+
+    if [ ${#missing_deps[@]} -gt 0 ]; then
+        echo "Error: Missing required dependencies:"
+        printf '  - %s\n' "${missing_deps[@]}"
+        echo
+        echo "Please install the missing packages:"
+        echo "  - scanimage: part of SANE scanner utilities"
+        echo "  - img2pdf: image to PDF converter"
+        echo "  - tesseract: OCR engine"
+        echo "  - mogrify: part of ImageMagick"
+        exit 1
+    fi
+
+    # ocrmypdf is optional, only needed for PDF with OCR mode
+}
+
+check_dependencies
 
 echo "Using scanner: $SCANNER_DEVICE"
+echo "Output directory: $OUTPUT_DIR"
 echo
 
 # --- Helper Functions ---
@@ -26,9 +56,11 @@ auto_orient_images() {
         if [ -f "$img" ]; then
             # Use tesseract to detect orientation and rotate if needed
             orientation=$(tesseract "$img" - --psm 0 2>&1 | grep "Orientation in degrees" | awk '{print $4}')
-            if [ ! -z "$orientation" ] && [ "$orientation" != "0" ]; then
+            if [ -n "$orientation" ] && [ "$orientation" != "0" ]; then
                 echo "  Rotating $(basename "$img") by $orientation degrees..."
-                mogrify -rotate "$orientation" "$img"
+                if ! mogrify -rotate "$orientation" "$img"; then
+                    echo "  Warning: Failed to rotate $(basename "$img")"
+                fi
             fi
         fi
     done
@@ -39,7 +71,7 @@ perform_ocr() {
     local dir="$1"
     local output_file="$2"
     echo "Performing OCR..."
-    > "$output_file"  # Clear the file
+    true > "$output_file"  # Clear the file
     for img in "$dir"/*.pnm; do
         if [ -f "$img" ]; then
             echo "  Processing $(basename "$img")..."
@@ -63,6 +95,37 @@ generate_markdown() {
         echo ""
         cat "$text_file"
     } > "$md_file"
+}
+
+# Function to generate output based on selected format
+generate_output() {
+    local source_dir="$1"
+    local output_filename="$2"
+
+    case "$OUTPUT_FORMAT" in
+        "PDF" )
+            echo "Combining pages into PDF..."
+            img2pdf "$source_dir"/*.pnm -o "$OUTPUT_DIR/$output_filename.pdf"
+            ;;
+        "PDF with OCR" )
+            echo "Creating searchable PDF with OCR..."
+            img2pdf "$source_dir"/*.pnm -o "$TEMP_DIR/temp.pdf"
+            if command -v ocrmypdf &> /dev/null; then
+                ocrmypdf "$TEMP_DIR/temp.pdf" "$OUTPUT_DIR/$output_filename.pdf" --force-ocr
+            else
+                echo "Warning: ocrmypdf not found. Creating regular PDF instead."
+                mv "$TEMP_DIR/temp.pdf" "$OUTPUT_DIR/$output_filename.pdf"
+            fi
+            ;;
+        "Text (OCR)" )
+            perform_ocr "$source_dir" "$OUTPUT_DIR/$output_filename.txt"
+            ;;
+        "Markdown (OCR)" )
+            OCR_TEMP="$TEMP_DIR/ocr_temp.txt"
+            perform_ocr "$source_dir" "$OCR_TEMP"
+            generate_markdown "$OCR_TEMP" "$OUTPUT_DIR/$output_filename.md"
+            ;;
+    esac
 }
 
 # --- Get user input ---
@@ -123,39 +186,19 @@ if [ "$SCAN_MODE" == "Single-sided" ]; then
     scanimage -d "$SCANNER_DEVICE" --mode Gray --resolution 300 --batch="$TEMP_DIR/page_%03d.pnm" --source "Automatic Document Feeder(left aligned)" -p
 
     echo
+    # Validate scan results
+    NUM_SCANNED=$(ls -1 "$TEMP_DIR"/*.pnm 2>/dev/null | wc -l)
+    if [ "$NUM_SCANNED" -eq 0 ]; then
+        echo "Error: No pages were scanned. Please check the scanner and try again."
+        exit 1
+    fi
+    echo "Scanned $NUM_SCANNED page(s)."
+
     # Auto-orient all scanned pages
     auto_orient_images "$TEMP_DIR"
 
     # Generate output based on selected format
-    case "$OUTPUT_FORMAT" in
-        "PDF" )
-            echo "Combining pages into PDF..."
-            img2pdf "$TEMP_DIR"/*.pnm -o "/home/thh3/Downloads/$OUTPUT_FILENAME.pdf"
-            ;;
-        "PDF with OCR" )
-            echo "Creating searchable PDF with OCR..."
-            # First create a temporary text file for OCR
-            OCR_TEMP="$TEMP_DIR/ocr_temp.txt"
-            perform_ocr "$TEMP_DIR" "$OCR_TEMP"
-            # Create PDF with img2pdf and then add OCR layer
-            img2pdf "$TEMP_DIR"/*.pnm -o "$TEMP_DIR/temp.pdf"
-            # Use ocrmypdf for searchable PDF
-            if command -v ocrmypdf &> /dev/null; then
-                ocrmypdf "$TEMP_DIR/temp.pdf" "/home/thh3/Downloads/$OUTPUT_FILENAME.pdf" --force-ocr
-            else
-                echo "Warning: ocrmypdf not found. Creating regular PDF instead."
-                mv "$TEMP_DIR/temp.pdf" "/home/thh3/Downloads/$OUTPUT_FILENAME.pdf"
-            fi
-            ;;
-        "Text (OCR)" )
-            perform_ocr "$TEMP_DIR" "/home/thh3/Downloads/$OUTPUT_FILENAME.txt"
-            ;;
-        "Markdown (OCR)" )
-            OCR_TEMP="$TEMP_DIR/ocr_temp.txt"
-            perform_ocr "$TEMP_DIR" "$OCR_TEMP"
-            generate_markdown "$OCR_TEMP" "/home/thh3/Downloads/$OUTPUT_FILENAME.md"
-            ;;
-    esac
+    generate_output "$TEMP_DIR" "$OUTPUT_FILENAME"
 
 else
     # --- DOUBLE-SIDED SCAN ---
@@ -178,6 +221,10 @@ else
     echo
     # Automatically count the number of front pages
     NUM_FRONT=$(ls -1 "$FRONT_DIR"/*.pnm 2>/dev/null | wc -l)
+    if [ "$NUM_FRONT" -eq 0 ]; then
+        echo "Error: No front pages were scanned. Please check the scanner and try again."
+        exit 1
+    fi
     echo "Scanned $NUM_FRONT front pages."
     echo
 
@@ -197,6 +244,10 @@ else
     echo
     # Automatically count the number of back pages
     NUM_BACK=$(ls -1 "$BACK_DIR"/*.pnm 2>/dev/null | wc -l)
+    if [ "$NUM_BACK" -eq 0 ]; then
+        echo "Error: No back pages were scanned. Please check the scanner and try again."
+        exit 1
+    fi
     echo "Scanned $NUM_BACK back pages."
     echo
 
@@ -209,14 +260,13 @@ else
             echo "Aborting scan."
             exit 1
         fi
-        # Use the minimum of the two counts
-        if [ "$NUM_FRONT" -lt "$NUM_BACK" ]; then
-            NUM_PAGES=$NUM_FRONT
-        else
-            NUM_PAGES=$NUM_BACK
-        fi
-    else
+    fi
+
+    # Use the maximum of the two counts to avoid data loss
+    if [ "$NUM_FRONT" -gt "$NUM_BACK" ]; then
         NUM_PAGES=$NUM_FRONT
+    else
+        NUM_PAGES=$NUM_BACK
     fi
 
     # --- Auto-orient pages ---
@@ -257,30 +307,7 @@ else
     done
 
     # Generate output based on selected format
-    case "$OUTPUT_FORMAT" in
-        "PDF" )
-            echo "Creating PDF..."
-            img2pdf "$COMBINED_DIR"/*.pnm -o "/home/thh3/Downloads/$OUTPUT_FILENAME.pdf"
-            ;;
-        "PDF with OCR" )
-            echo "Creating searchable PDF with OCR..."
-            img2pdf "$COMBINED_DIR"/*.pnm -o "$TEMP_DIR/temp.pdf"
-            if command -v ocrmypdf &> /dev/null; then
-                ocrmypdf "$TEMP_DIR/temp.pdf" "/home/thh3/Downloads/$OUTPUT_FILENAME.pdf" --force-ocr
-            else
-                echo "Warning: ocrmypdf not found. Creating regular PDF instead."
-                mv "$TEMP_DIR/temp.pdf" "/home/thh3/Downloads/$OUTPUT_FILENAME.pdf"
-            fi
-            ;;
-        "Text (OCR)" )
-            perform_ocr "$COMBINED_DIR" "/home/thh3/Downloads/$OUTPUT_FILENAME.txt"
-            ;;
-        "Markdown (OCR)" )
-            OCR_TEMP="$TEMP_DIR/ocr_temp.txt"
-            perform_ocr "$COMBINED_DIR" "$OCR_TEMP"
-            generate_markdown "$OCR_TEMP" "/home/thh3/Downloads/$OUTPUT_FILENAME.md"
-            ;;
-    esac
+    generate_output "$COMBINED_DIR" "$OUTPUT_FILENAME"
 
 fi
 
@@ -296,13 +323,13 @@ fi
 # Determine the output file extension based on format
 case "$OUTPUT_FORMAT" in
     "PDF" | "PDF with OCR" )
-        FINAL_FILE="/home/thh3/Downloads/$OUTPUT_FILENAME.pdf"
+        FINAL_FILE="$OUTPUT_DIR/$OUTPUT_FILENAME.pdf"
         ;;
     "Text (OCR)" )
-        FINAL_FILE="/home/thh3/Downloads/$OUTPUT_FILENAME.txt"
+        FINAL_FILE="$OUTPUT_DIR/$OUTPUT_FILENAME.txt"
         ;;
     "Markdown (OCR)" )
-        FINAL_FILE="/home/thh3/Downloads/$OUTPUT_FILENAME.md"
+        FINAL_FILE="$OUTPUT_DIR/$OUTPUT_FILENAME.md"
         ;;
 esac
 
