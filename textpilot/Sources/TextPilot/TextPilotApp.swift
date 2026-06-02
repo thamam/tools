@@ -9,9 +9,17 @@ struct TextPilotApp: App {
     var body: some Scene {
         MenuBarExtra("TextPilot", systemImage: "text.bubble") {
             Button("Rewrite Selection") {
-                appDelegate.rewriteSelection()
+                appDelegate.rewriteSelection(action: .fixGrammar, autoRun: false)
             }
             .keyboardShortcut("r")
+
+            Button("Shorten Selection") {
+                appDelegate.rewriteSelection(action: .shorten, autoRun: true)
+            }
+
+            Button("Custom Action") {
+                appDelegate.rewriteSelection(action: .custom, autoRun: false)
+            }
 
             Button("Settings") {
                 appDelegate.showSettings()
@@ -31,7 +39,9 @@ struct TextPilotApp: App {
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private let settingsStore = SettingsStore()
+    private let defaults = TextPilotDefaults.make()
+    private lazy var settingsStore = SettingsStore(defaults: defaults)
+    private lazy var historyStore = HistoryStore(defaults: defaults)
     private let selectionCaptureService = SelectionCaptureService()
     private var rewritePanelController: RewritePanelController?
     private var settingsWindowController: NSWindowController?
@@ -39,21 +49,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
-        hotKeyManager = HotKeyManager { [weak self] in
+        hotKeyManager = HotKeyManager { [weak self] invocation in
             Task { @MainActor in
-                self?.rewriteSelection()
+                self?.rewriteSelection(action: invocation.action, autoRun: invocation.autoRun)
             }
         }
         hotKeyManager?.register()
     }
 
-    func rewriteSelection() {
+    func rewriteSelection(action: RewriteActionSelection, autoRun: Bool) {
         Task { @MainActor in
             do {
-                let selectedText = try await selectionCaptureService.captureSelectedText()
-                showRewritePanel(selectedText: selectedText)
+                let selection = try await selectionCaptureService.captureSelection()
+                showRewritePanel(selection: selection, initialError: nil, selectedAction: action, autoRun: autoRun)
             } catch {
-                showRewritePanel(selectedText: "", initialError: error.localizedDescription)
+                let selection = CapturedSelection(text: "", sourceApplication: NSWorkspace.shared.frontmostApplication)
+                showRewritePanel(selection: selection, initialError: error.localizedDescription, selectedAction: action, autoRun: false)
             }
         }
     }
@@ -68,8 +79,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let view = SettingsView(settingsStore: settingsStore)
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 460, height: 260),
-            styleMask: [.titled, .closable, .miniaturizable],
+            contentRect: NSRect(x: 0, y: 0, width: 620, height: 680),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
@@ -83,9 +94,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    private func showRewritePanel(selectedText: String, initialError: String? = nil) {
-        let panelController = RewritePanelController(settingsStore: settingsStore)
+    private func showRewritePanel(selection: CapturedSelection, initialError: String?, selectedAction: RewriteActionSelection, autoRun: Bool) {
+        let panelController = RewritePanelController(
+            settingsStore: settingsStore,
+            historyStore: historyStore,
+            selectionCaptureService: selectionCaptureService
+        )
         rewritePanelController = panelController
-        panelController.show(selectedText: selectedText, initialError: initialError)
+        panelController.show(selection: selection, initialError: initialError, selectedAction: selectedAction, autoRun: autoRun)
     }
 }

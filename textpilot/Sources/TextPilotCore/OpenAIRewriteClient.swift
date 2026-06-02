@@ -67,11 +67,19 @@ public struct OpenAIRewriteClient: Sendable {
     }
 
     public func rewrite(_ text: String, mode: RewriteMode, profile: PromptProfile = .default) async throws -> String {
-        try await rewriteWithTrace(text, mode: mode, profile: profile).text
+        try await rewrite(text, operation: .mode(mode), profile: profile)
+    }
+
+    public func rewrite(_ text: String, operation: RewriteOperation, profile: PromptProfile = .default) async throws -> String {
+        try await rewriteWithTrace(text, operation: operation, profile: profile).text
     }
 
     public func rewriteWithTrace(_ text: String, mode: RewriteMode, profile: PromptProfile = .default) async throws -> RewriteResponse {
-        let prompt = RewritePromptFactory.prompt(for: mode, text: text, profile: profile)
+        try await rewriteWithTrace(text, operation: .mode(mode), profile: profile)
+    }
+
+    public func rewriteWithTrace(_ text: String, operation: RewriteOperation, profile: PromptProfile = .default) async throws -> RewriteResponse {
+        let prompt = RewritePromptFactory.prompt(for: operation, text: text, profile: profile)
         let body = try JSONSerialization.data(withJSONObject: [
             "model": model,
             "messages": [

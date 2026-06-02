@@ -60,6 +60,61 @@ func testPromptFactoryUsesCustomProfilePrompt() throws {
     try expect(prompt.user.contains("one two three four five six"), "selected text should still be included")
 }
 
+
+func testCustomRewriteOperationPromptUsesOneOffInstruction() throws {
+    let operation = RewriteOperation.custom("Make this sound excited but concise.")
+
+    let prompt = RewritePromptFactory.prompt(for: operation, text: "shipping today", profile: .default)
+
+    try expect(prompt.user.contains("Make this sound excited but concise."), "custom instruction should be included")
+    try expect(prompt.user.contains("shipping today"), "selected text should be included")
+}
+
+func testHistoryBufferKeepsMostRecentTwentyEntries() throws {
+    var entries: [RewriteHistoryEntry] = []
+    for index in 1...25 {
+        entries = RewriteHistoryBuffer.adding(
+            RewriteHistoryEntry(
+                id: "entry-\(index)",
+                timestamp: Date(timeIntervalSince1970: TimeInterval(index)),
+                operationName: "Shorten",
+                profileName: "Default",
+                originalText: "original \(index)",
+                outputText: "output \(index)"
+            ),
+            to: entries,
+            limit: 20
+        )
+    }
+
+    try expect(entries.count == 20, "history should keep 20 entries")
+    try expect(entries.first?.id == "entry-25", "newest entry should be first")
+    try expect(entries.last?.id == "entry-6", "oldest retained entry should be entry 6")
+}
+
+func testEditorReturnKeyPolicyMapsKeyboardNavigation() throws {
+    try expect(
+        EditorReturnKeyPolicy.action(for: []) == .run,
+        "plain Return should run the selected action"
+    )
+    try expect(
+        EditorReturnKeyPolicy.action(for: [.shift]) == .insertNewline,
+        "Shift+Return should insert a newline"
+    )
+    try expect(
+        EditorReturnKeyPolicy.action(for: [.command]) == .copyAndClose,
+        "Command+Return should copy and close"
+    )
+    try expect(
+        EditorReturnKeyPolicy.action(for: [.option]) == .replaceAndClose,
+        "Option+Return should replace and close"
+    )
+}
+
+func testVersionIsBumpedForKeyboardWorkflow() throws {
+    try expect(TextPilotVersion.current == "0.2.1", "version should be bumped for keyboard workflow changes")
+}
+
 func testSelectedTextValidatorRejectsBlankInput() throws {
     do {
         _ = try SelectedTextValidator.validated(" \n\t ")
@@ -181,6 +236,10 @@ enum SpecRunner {
             ("all rewrite modes have display names and instructions", { try testAllRewriteModesHaveDisplayNamesAndInstructions() }),
             ("default prompt profile is read-only and complete", { try testDefaultPromptProfileIsReadOnlyAndContainsAllPrompts() }),
             ("prompt factory uses custom profile prompt", { try testPromptFactoryUsesCustomProfilePrompt() }),
+            ("custom rewrite operation prompt uses one-off instruction", { try testCustomRewriteOperationPromptUsesOneOffInstruction() }),
+            ("history buffer keeps most recent twenty entries", { try testHistoryBufferKeepsMostRecentTwentyEntries() }),
+            ("editor return key policy maps keyboard navigation", { try testEditorReturnKeyPolicyMapsKeyboardNavigation() }),
+            ("version is bumped for keyboard workflow", { try testVersionIsBumpedForKeyboardWorkflow() }),
             ("selected text validator rejects blank input", { try testSelectedTextValidatorRejectsBlankInput() }),
             ("selected text validator trims input", { try testSelectedTextValidatorTrimsInput() }),
             ("OpenAI client sends prompt and parses returned text", testOpenAIClientSendsPromptAndParsesReturnedText),

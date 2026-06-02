@@ -18,6 +18,10 @@ let package = Package(
             dependencies: ["TextPilotCore"]
         ),
         .executableTarget(
+            name: "TextPilotE2EHost",
+            dependencies: []
+        ),
+        .executableTarget(
             name: "TextPilotCoreSpec",
             dependencies: ["TextPilotCore"],
             path: "Tests/TextPilotCoreSpec",

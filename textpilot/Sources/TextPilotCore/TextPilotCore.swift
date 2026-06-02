@@ -1,5 +1,43 @@
 import Foundation
 
+public enum TextPilotVersion {
+    public static let current = "0.2.1"
+}
+
+public struct EditorKeyModifiers: OptionSet, Equatable, Sendable {
+    public let rawValue: Int
+
+    public init(rawValue: Int) {
+        self.rawValue = rawValue
+    }
+
+    public static let shift = EditorKeyModifiers(rawValue: 1 << 0)
+    public static let command = EditorKeyModifiers(rawValue: 1 << 1)
+    public static let option = EditorKeyModifiers(rawValue: 1 << 2)
+}
+
+public enum EditorReturnKeyAction: Equatable, Sendable {
+    case run
+    case insertNewline
+    case copyAndClose
+    case replaceAndClose
+}
+
+public enum EditorReturnKeyPolicy {
+    public static func action(for modifiers: EditorKeyModifiers) -> EditorReturnKeyAction {
+        if modifiers.contains(.shift) {
+            return .insertNewline
+        }
+        if modifiers.contains(.command) {
+            return .copyAndClose
+        }
+        if modifiers.contains(.option) {
+            return .replaceAndClose
+        }
+        return .run
+    }
+}
+
 public enum RewriteMode: String, CaseIterable, Codable, Identifiable, Sendable {
     case fixGrammar
     case rewriteClearly
@@ -37,6 +75,54 @@ public enum RewriteMode: String, CaseIterable, Codable, Identifiable, Sendable {
         case .casual:
             "Rewrite this in a casual, natural tone while preserving the original meaning."
         }
+    }
+}
+
+public enum RewriteOperation: Equatable, Sendable {
+    case mode(RewriteMode)
+    case custom(String)
+
+    public var displayName: String {
+        switch self {
+        case .mode(let mode):
+            mode.displayName
+        case .custom:
+            "Custom"
+        }
+    }
+
+    public var instruction: String {
+        switch self {
+        case .mode(let mode):
+            mode.instruction
+        case .custom(let instruction):
+            instruction
+        }
+    }
+}
+
+public struct RewriteHistoryEntry: Codable, Equatable, Identifiable, Sendable {
+    public let id: String
+    public let timestamp: Date
+    public let operationName: String
+    public let profileName: String
+    public let originalText: String
+    public let outputText: String
+
+    public init(id: String = UUID().uuidString, timestamp: Date = Date(), operationName: String, profileName: String, originalText: String, outputText: String) {
+        self.id = id
+        self.timestamp = timestamp
+        self.operationName = operationName
+        self.profileName = profileName
+        self.originalText = originalText
+        self.outputText = outputText
+    }
+}
+
+public enum RewriteHistoryBuffer {
+    public static func adding(_ entry: RewriteHistoryEntry, to entries: [RewriteHistoryEntry], limit: Int = 20) -> [RewriteHistoryEntry] {
+        guard limit > 0 else { return [] }
+        return Array(([entry] + entries).prefix(limit))
     }
 }
 
@@ -84,10 +170,22 @@ public struct RewritePrompt: Equatable, Sendable {
 
 public enum RewritePromptFactory {
     public static func prompt(for mode: RewriteMode, text: String, profile: PromptProfile = .default) -> RewritePrompt {
+        prompt(for: .mode(mode), text: text, profile: profile)
+    }
+
+    public static func prompt(for operation: RewriteOperation, text: String, profile: PromptProfile = .default) -> RewritePrompt {
+        let instruction: String
+        switch operation {
+        case .mode(let mode):
+            instruction = profile.prompt(for: mode)
+        case .custom(let customInstruction):
+            instruction = customInstruction
+        }
+
         return RewritePrompt(
             system: "You rewrite selected user text. Return only the rewritten text, with no commentary.",
             user: """
-            \(profile.prompt(for: mode))
+            \(instruction)
 
             Selected text:
             \(text)

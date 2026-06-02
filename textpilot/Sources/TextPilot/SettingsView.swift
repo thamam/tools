@@ -7,8 +7,13 @@ struct SettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text("TextPilot Settings")
-                .font(.title2.weight(.semibold))
+            HStack {
+                Text("TextPilot Settings")
+                    .font(.title2.weight(.semibold))
+                Spacer()
+                Text("v\(TextPilotVersion.current)")
+                    .foregroundStyle(.secondary)
+            }
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("OpenAI API Key")
@@ -28,8 +33,11 @@ struct SettingsView: View {
 
             profileEditor
 
-            Text("Shortcut: Control + Option + R")
-                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Global shortcuts: Ctrl+Opt+R open, G grammar, C clear, S shorten, P professional, L casual, K custom")
+                Text("Panel shortcuts: Return run, Shift+Return newline, Cmd+Return copy and close, Opt+Return replace and close")
+            }
+            .foregroundStyle(.secondary)
 
             Spacer(minLength: 0)
         }
