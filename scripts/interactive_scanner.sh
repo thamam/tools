@@ -3,7 +3,7 @@
 # A script to interactively scan single or double-sided documents to PDF.
 
 echo "========================================"
-echo " Interactive Document Scanner (v2)"
+echo " Interactive Document Scanner (v3)"
 echo "========================================"
 echo
 
@@ -11,13 +11,125 @@ echo
 # The scanner device name is hardcoded because auto-detection is complex in a simple script.
 # This is the device name we discovered for your scanner.
 SCANNER_DEVICE="brother4:bus1;dev6"
-TEMP_DIR="/home/thh3/Downloads/scan_temp"
+OUTPUT_DIR="${HOME}/Downloads"
+TEMP_DIR="${HOME}/Downloads/scan_temp"
+
+# --- Dependency Check ---
+check_dependencies() {
+    local missing_deps=()
+
+    # Check required commands
+    for cmd in scanimage img2pdf tesseract mogrify; do
+        if ! command -v "$cmd" &> /dev/null; then
+            missing_deps+=("$cmd")
+        fi
+    done
+
+    if [ ${#missing_deps[@]} -gt 0 ]; then
+        echo "Error: Missing required dependencies:"
+        printf '  - %s\n' "${missing_deps[@]}"
+        echo
+        echo "Please install the missing packages:"
+        echo "  - scanimage: part of SANE scanner utilities"
+        echo "  - img2pdf: image to PDF converter"
+        echo "  - tesseract: OCR engine"
+        echo "  - mogrify: part of ImageMagick"
+        exit 1
+    fi
+
+    # ocrmypdf is optional, only needed for PDF with OCR mode
+}
+
+check_dependencies
 
 echo "Using scanner: $SCANNER_DEVICE"
+echo "Output directory: $OUTPUT_DIR"
 echo
 
+# --- Helper Functions ---
+
+# Function to auto-orient images using tesseract
+auto_orient_images() {
+    local dir="$1"
+    echo "Auto-detecting and correcting orientation..."
+    for img in "$dir"/*.pnm; do
+        if [ -f "$img" ]; then
+            # Use tesseract to detect orientation and rotate if needed
+            orientation=$(tesseract "$img" - --psm 0 2>&1 | grep "Orientation in degrees" | awk '{print $4}')
+            if [ -n "$orientation" ] && [ "$orientation" != "0" ]; then
+                echo "  Rotating $(basename "$img") by $orientation degrees..."
+                if ! mogrify -rotate "$orientation" "$img"; then
+                    echo "  Warning: Failed to rotate $(basename "$img")"
+                fi
+            fi
+        fi
+    done
+}
+
+# Function to perform OCR on images and generate text
+perform_ocr() {
+    local dir="$1"
+    local output_file="$2"
+    echo "Performing OCR..."
+    true > "$output_file"  # Clear the file
+    for img in "$dir"/*.pnm; do
+        if [ -f "$img" ]; then
+            echo "  Processing $(basename "$img")..."
+            tesseract "$img" stdout -l eng >> "$output_file" 2>/dev/null
+            echo -e "\n--- Page Break ---\n" >> "$output_file"
+        fi
+    done
+}
+
+# Function to generate markdown from OCR text
+generate_markdown() {
+    local text_file="$1"
+    local md_file="$2"
+    echo "Generating Markdown..."
+    {
+        echo "# Scanned Document"
+        echo ""
+        echo "Generated on: $(date '+%Y-%m-%d %H:%M:%S')"
+        echo ""
+        echo "---"
+        echo ""
+        cat "$text_file"
+    } > "$md_file"
+}
+
+# Function to generate output based on selected format
+generate_output() {
+    local source_dir="$1"
+    local output_filename="$2"
+
+    case "$OUTPUT_FORMAT" in
+        "PDF" )
+            echo "Combining pages into PDF..."
+            img2pdf "$source_dir"/*.pnm -o "$OUTPUT_DIR/$output_filename.pdf"
+            ;;
+        "PDF with OCR" )
+            echo "Creating searchable PDF with OCR..."
+            img2pdf "$source_dir"/*.pnm -o "$TEMP_DIR/temp.pdf"
+            if command -v ocrmypdf &> /dev/null; then
+                ocrmypdf "$TEMP_DIR/temp.pdf" "$OUTPUT_DIR/$output_filename.pdf" --force-ocr
+            else
+                echo "Warning: ocrmypdf not found. Creating regular PDF instead."
+                mv "$TEMP_DIR/temp.pdf" "$OUTPUT_DIR/$output_filename.pdf"
+            fi
+            ;;
+        "Text (OCR)" )
+            perform_ocr "$source_dir" "$OUTPUT_DIR/$output_filename.txt"
+            ;;
+        "Markdown (OCR)" )
+            OCR_TEMP="$TEMP_DIR/ocr_temp.txt"
+            perform_ocr "$source_dir" "$OCR_TEMP"
+            generate_markdown "$OCR_TEMP" "$OUTPUT_DIR/$output_filename.md"
+            ;;
+    esac
+}
+
 # --- Get user input ---
-read -p "Enter the name for the final PDF file (e.g., my_document.pdf): " OUTPUT_FILENAME
+read -p "Enter the name for the final output file (e.g., my_document): " OUTPUT_FILENAME
 
 if [ -z "$OUTPUT_FILENAME" ]; then
     echo "Error: Output filename cannot be empty."
@@ -28,8 +140,19 @@ echo
 echo "Is this a single-sided or double-sided scan?"
 select SCAN_MODE in "Single-sided" "Double-sided"; do
     case $SCAN_MODE in
-        "Single-sided" ) break;; 
-        "Double-sided" ) break;; 
+        "Single-sided" ) break;;
+        "Double-sided" ) break;;
+    esac
+done
+
+echo
+echo "Select output format:"
+select OUTPUT_FORMAT in "PDF" "PDF with OCR" "Text (OCR)" "Markdown (OCR)"; do
+    case $OUTPUT_FORMAT in
+        "PDF" ) break;;
+        "PDF with OCR" ) break;;
+        "Text (OCR)" ) break;;
+        "Markdown (OCR)" ) break;;
     esac
 done
 
@@ -60,12 +183,22 @@ if [ "$SCAN_MODE" == "Single-sided" ]; then
     read -p "Press Enter when you are ready to scan..."
 
     echo "Scanning..."
-scanimage -d "$SCANNER_DEVICE" --mode Gray --resolution 300 --batch="$TEMP_DIR/page_%03d.pnm" --source "Automatic Document Feeder(left aligned)" -p
+    scanimage -d "$SCANNER_DEVICE" --mode Gray --resolution 300 --batch="$TEMP_DIR/page_%03d.pnm" --source "Automatic Document Feeder(left aligned)" -p
 
     echo
-    echo "Combining pages into PDF..."
-    # This will take all .pnm files in the directory
-    img2pdf "$TEMP_DIR"/*.pnm -o "/home/thh3/Downloads/$OUTPUT_FILENAME"
+    # Validate scan results
+    NUM_SCANNED=$(ls -1 "$TEMP_DIR"/*.pnm 2>/dev/null | wc -l)
+    if [ "$NUM_SCANNED" -eq 0 ]; then
+        echo "Error: No pages were scanned. Please check the scanner and try again."
+        exit 1
+    fi
+    echo "Scanned $NUM_SCANNED page(s)."
+
+    # Auto-orient all scanned pages
+    auto_orient_images "$TEMP_DIR"
+
+    # Generate output based on selected format
+    generate_output "$TEMP_DIR" "$OUTPUT_FILENAME"
 
 else
     # --- DOUBLE-SIDED SCAN ---
@@ -83,71 +216,98 @@ else
     read -p "Press Enter when you are ready to scan the FRONT pages..."
 
     echo "Scanning front pages..."
-scanimage -d "$SCANNER_DEVICE" --mode Gray --resolution 300 --batch="$FRONT_DIR/front_%03d.pnm" --source "Automatic Document Feeder(left aligned)" -p
-    
+    scanimage -d "$SCANNER_DEVICE" --mode Gray --resolution 300 --batch="$FRONT_DIR/front_%03d.pnm" --source "Automatic Document Feeder(left aligned)" -p
+
     echo
-    read -p "IMPORTANT: Please enter the number of pages that were just scanned: " NUM_FRONT
-    echo "Noted: $NUM_FRONT front pages."
+    # Automatically count the number of front pages
+    NUM_FRONT=$(ls -1 "$FRONT_DIR"/*.pnm 2>/dev/null | wc -l)
+    if [ "$NUM_FRONT" -eq 0 ]; then
+        echo "Error: No front pages were scanned. Please check the scanner and try again."
+        exit 1
+    fi
+    echo "Scanned $NUM_FRONT front pages."
     echo
 
-    # --- Scan back pages (with loop for correction) ---
-    while true; do
-        echo "----------------------------------------"
-        echo "      DOUBLE-SIDED SCAN: BACK PAGES"
-        echo "----------------------------------------"
-        echo "Based on your feedback, we need to adjust the paper orientation for the back-side scan."
-        echo "1. Take the stack of $NUM_FRONT pages from the output tray."
-        echo "2. Rotate the entire stack 180 degrees (like a spinning wheel)."
-        echo "3. Place the rotated stack back into the feeder."
-        echo
-        read -p "Press Enter when you are ready to scan the BACK pages..."
+    # --- Scan back pages ---
+    echo "----------------------------------------"
+    echo "      DOUBLE-SIDED SCAN: BACK PAGES"
+    echo "----------------------------------------"
+    echo "1. Take the stack of pages from the output tray."
+    echo "2. WITHOUT rotating, flip the stack over and place it back in the feeder."
+    echo "   (The last page should now be on top, face-down)"
+    echo
+    read -p "Press Enter when you are ready to scan the BACK pages..."
 
-        echo "Scanning back pages..."
-scanimage -d "$SCANNER_DEVICE" --mode Gray --resolution 300 --batch="$BACK_DIR/back_%03d.pnm" --source "Automatic Document Feeder(left aligned)" -p
-        
-        echo
-        read -p "IMPORTANT: Please enter the number of BACK pages that were just scanned: " NUM_BACK
-        echo "Noted: $NUM_BACK back pages."
-        echo
+    echo "Scanning back pages..."
+    scanimage -d "$SCANNER_DEVICE" --mode Gray --resolution 300 --batch="$BACK_DIR/back_%03d.pnm" --source "Automatic Document Feeder(left aligned)" -p
 
-        if [ "$NUM_FRONT" -eq "$NUM_BACK" ]; then
-            break # Numbers match, exit loop
-        else
-            echo "Error: The number of front pages ($NUM_FRONT) does not match the number of back pages ($NUM_BACK)."
-            read -p "Would you like to try scanning the back pages again? (y/n) " -n 1 -r
-            echo
-            if [[ $REPLY =~ ^[Yy]$ ]]; then
-                echo "Clearing back pages directory and trying again..."
-                rm "$BACK_DIR"/*
-            else
-                echo "Aborting scan."
-                exit 1
-            fi
+    echo
+    # Automatically count the number of back pages
+    NUM_BACK=$(ls -1 "$BACK_DIR"/*.pnm 2>/dev/null | wc -l)
+    if [ "$NUM_BACK" -eq 0 ]; then
+        echo "Error: No back pages were scanned. Please check the scanner and try again."
+        exit 1
+    fi
+    echo "Scanned $NUM_BACK back pages."
+    echo
+
+    # Verify counts match
+    if [ "$NUM_FRONT" -ne "$NUM_BACK" ]; then
+        echo "Warning: Number of front pages ($NUM_FRONT) doesn't match back pages ($NUM_BACK)."
+        read -p "Do you want to continue anyway? (y/n) " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            echo "Aborting scan."
+            exit 1
         fi
-    done
+    fi
 
-    # --- Rotate the back pages ---
-    echo "Rotating back pages 180 degrees..."
- mogrify -rotate 180 "$BACK_DIR"/*.pnm
+    # Use the maximum of the two counts to avoid data loss
+    if [ "$NUM_FRONT" -gt "$NUM_BACK" ]; then
+        NUM_PAGES=$NUM_FRONT
+    else
+        NUM_PAGES=$NUM_BACK
+    fi
+
+    # --- Auto-orient pages ---
+    auto_orient_images "$FRONT_DIR"
+    auto_orient_images "$BACK_DIR"
 
     # --- Combine interleaved pages ---
-    echo "Combining and interleaving pages into PDF..."
-    FILE_LIST=""
-    i=1
-    while [ $i -le $NUM_FRONT ]; do
-        # Format i with leading zeros like 001, 002 etc.
-        printf -v I_FORMATTED "%03d" $i
-        
-        # Calculate the index for the back page (in reverse)
-        back_i=$((NUM_FRONT - i + 1))
-        printf -v BACK_I_FORMATTED "%03d" $back_i
+    echo "Combining and interleaving pages..."
 
-        FILE_LIST="$FILE_LIST \"$FRONT_DIR/front_$I_FORMATTED.pnm\" \"$BACK_DIR/back_$BACK_I_FORMATTED.pnm\""
+    # Create a temporary directory for interleaved pages
+    COMBINED_DIR="$TEMP_DIR/combined"
+    mkdir -p "$COMBINED_DIR"
+
+    # Interleave front and back pages
+    i=1
+    page_num=1
+    while [ $i -le $NUM_PAGES ]; do
+        printf -v I_FORMATTED "%03d" $i
+        printf -v PAGE_FORMATTED "%03d" $page_num
+
+        # Copy front page
+        if [ -f "$FRONT_DIR/front_$I_FORMATTED.pnm" ]; then
+            cp "$FRONT_DIR/front_$I_FORMATTED.pnm" "$COMBINED_DIR/page_$PAGE_FORMATTED.pnm"
+            page_num=$((page_num + 1))
+        fi
+
+        # Copy back page (in reverse order)
+        back_i=$((NUM_PAGES - i + 1))
+        printf -v BACK_I_FORMATTED "%03d" $back_i
+        printf -v PAGE_FORMATTED "%03d" $page_num
+
+        if [ -f "$BACK_DIR/back_$BACK_I_FORMATTED.pnm" ]; then
+            cp "$BACK_DIR/back_$BACK_I_FORMATTED.pnm" "$COMBINED_DIR/page_$PAGE_FORMATTED.pnm"
+            page_num=$((page_num + 1))
+        fi
+
         i=$((i + 1))
     done
 
-    # Using eval to handle the file list with spaces correctly
-    eval "img2pdf $FILE_LIST -o \"/home/thh3/Downloads/$OUTPUT_FILENAME\""
+    # Generate output based on selected format
+    generate_output "$COMBINED_DIR" "$OUTPUT_FILENAME"
 
 fi
 
@@ -160,9 +320,23 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
     rm -r "$TEMP_DIR"
 fi
 
+# Determine the output file extension based on format
+case "$OUTPUT_FORMAT" in
+    "PDF" | "PDF with OCR" )
+        FINAL_FILE="$OUTPUT_DIR/$OUTPUT_FILENAME.pdf"
+        ;;
+    "Text (OCR)" )
+        FINAL_FILE="$OUTPUT_DIR/$OUTPUT_FILENAME.txt"
+        ;;
+    "Markdown (OCR)" )
+        FINAL_FILE="$OUTPUT_DIR/$OUTPUT_FILENAME.md"
+        ;;
+esac
+
 echo
 echo "========================================"
 echo "          Scan Complete!"
 echo "========================================"
-echo "Your file is saved as: /home/thh3/Downloads/$OUTPUT_FILENAME"
+echo "Your file is saved as: $FINAL_FILE"
+echo "Output format: $OUTPUT_FORMAT"
 echo
