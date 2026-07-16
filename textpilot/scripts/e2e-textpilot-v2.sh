@@ -4,6 +4,8 @@ set -euo pipefail
 BUILD_PATH="${BUILD_PATH:-/private/tmp/textpilot-v2-e2e-build}"
 MOCK_OUTPUT="${TEXTPILOT_MOCK_OUTPUT:-E2E rewritten output}"
 HOST_OUTPUT="${HOST_OUTPUT:-/tmp/textpilot-e2e-host.txt}"
+REPLACEMENT_LOG="${REPLACEMENT_LOG:-/tmp/textpilot-v2-replacement.log}"
+EXPECTED_REPLACEMENT_METHOD="${TEXTPILOT_EXPECT_REPLACEMENT_METHOD:-accessibilityDirect}"
 DEFAULTS_SUITE="dev.textpilot.e2e.$$"
 APP_PID=""
 HOST_PID=""
@@ -34,16 +36,28 @@ window_count() {
   osascript -e 'tell application "System Events" to tell process "TextPilot" to count windows' 2>/dev/null || echo 0
 }
 
-rm -f "$HOST_OUTPUT" /tmp/textpilot-v2-e2e-app.log /tmp/textpilot-v2-e2e-host.log
+rm -f "$HOST_OUTPUT" "$REPLACEMENT_LOG" /tmp/textpilot-v2-e2e-app.log /tmp/textpilot-v2-e2e-host.log
 swift build --build-path "$BUILD_PATH" --product TextPilot --product TextPilotE2EHost >/dev/null
 
 TEXTPILOT_E2E_HOST_OUTPUT="$HOST_OUTPUT" swift run --build-path "$BUILD_PATH" TextPilotE2EHost >/tmp/textpilot-v2-e2e-host.log 2>&1 &
 HOST_PID=$!
 sleep 3
 
-TEXTPILOT_MOCK_OUTPUT="$MOCK_OUTPUT" TEXTPILOT_USER_DEFAULTS_SUITE="$DEFAULTS_SUITE" swift run --build-path "$BUILD_PATH" TextPilot >/tmp/textpilot-v2-e2e-app.log 2>&1 &
+APP_ENV=(
+  "TEXTPILOT_MOCK_OUTPUT=$MOCK_OUTPUT"
+  "TEXTPILOT_USER_DEFAULTS_SUITE=$DEFAULTS_SUITE"
+  "TEXTPILOT_REPLACEMENT_LOG=$REPLACEMENT_LOG"
+)
+if [[ "${TEXTPILOT_DISABLE_DIRECT_REPLACE:-}" == "1" ]]; then
+  APP_ENV+=("TEXTPILOT_DISABLE_DIRECT_REPLACE=1")
+fi
+if [[ "${TEXTPILOT_REQUIRE_DIRECT_REPLACE:-}" == "1" ]]; then
+  APP_ENV+=("TEXTPILOT_REQUIRE_DIRECT_REPLACE=1")
+fi
+
+env "${APP_ENV[@]}" swift run --build-path "$BUILD_PATH" TextPilot >/tmp/textpilot-v2-e2e-app.log 2>&1 &
 APP_PID=$!
-sleep 3
+sleep 7
 
 activate_host
 printf "BEFORE_RETURN_RUN" | pbcopy
@@ -103,6 +117,8 @@ sleep 1.5
 HOST_TEXT="$(cat "$HOST_OUTPUT")"
 if [[ "$HOST_TEXT" != "$MOCK_OUTPUT" ]]; then
   echo "FAIL replace-close: expected host text '$MOCK_OUTPUT' but got '$HOST_TEXT'" >&2
+  echo "Replacement log:" >&2
+  cat "$REPLACEMENT_LOG" >&2 2>/dev/null || true
   exit 1
 fi
 if [[ "$(window_count)" != "0" ]]; then
@@ -110,4 +126,10 @@ if [[ "$(window_count)" != "0" ]]; then
   exit 1
 fi
 
-echo "PASS e2e return-run-copy-close-shortcut-replace-close-history"
+REPLACEMENT_TEXT="$(cat "$REPLACEMENT_LOG" 2>/dev/null || true)"
+if [[ "$REPLACEMENT_TEXT" != *"method=$EXPECTED_REPLACEMENT_METHOD"* ]]; then
+  echo "FAIL replacement-method: expected '$EXPECTED_REPLACEMENT_METHOD' in replacement log, got '$REPLACEMENT_TEXT'" >&2
+  exit 1
+fi
+
+echo "PASS e2e return-run-copy-close-shortcut-replace-close-history method=$EXPECTED_REPLACEMENT_METHOD"

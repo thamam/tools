@@ -1,6 +1,6 @@
 # TextPilot
 
-TextPilot v0.2.1 is a native SwiftUI macOS menu-bar utility for rewriting selected text with an LLM.
+TextPilot v0.2.2 is a native SwiftUI macOS menu-bar utility for rewriting selected text with an LLM.
 
 ## MVP Flow
 
@@ -10,7 +10,8 @@ TextPilot v0.2.1 is a native SwiftUI macOS menu-bar utility for rewriting select
 4. Pick a rewrite action. Press `Return` to run from an editor, or `Shift + Return` to insert a newline.
 5. The generated alternative is copied automatically.
 6. Press `Command + Return` to copy and close, or `Option + Return` to replace the original selection and close.
-7. Paste it manually, use `Replace`, or use History to recover the last 20 generated responses.
+7. Replacement first tries a direct Accessibility edit of the still-selected text, then falls back to `Cmd+V` paste if the app does not expose a compatible text selection.
+8. Paste manually, use `Replace`, or use History to recover the last 20 generated responses.
 
 ## Run
 

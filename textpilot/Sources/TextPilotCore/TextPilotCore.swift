@@ -1,7 +1,7 @@
 import Foundation
 
 public enum TextPilotVersion {
-    public static let current = "0.2.1"
+    public static let current = "0.2.2"
 }
 
 public struct EditorKeyModifiers: OptionSet, Equatable, Sendable {
@@ -35,6 +35,36 @@ public enum EditorReturnKeyPolicy {
             return .replaceAndClose
         }
         return .run
+    }
+}
+
+
+public struct TextReplacementRange: Equatable, Sendable {
+    public let location: Int
+    public let length: Int
+
+    public init(location: Int, length: Int) {
+        self.location = location
+        self.length = length
+    }
+}
+
+public enum TextSelectionReplacer {
+    public static func replacingSelection(in value: String, range: TextReplacementRange, with replacement: String) -> String? {
+        guard range.location >= 0, range.length >= 0 else { return nil }
+        let nsRange = NSRange(location: range.location, length: range.length)
+        guard let swiftRange = Range(nsRange, in: value) else { return nil }
+
+        var updated = value
+        updated.replaceSubrange(swiftRange, with: replacement)
+        return updated
+    }
+
+    public static func selectedText(in value: String, range: TextReplacementRange) -> String? {
+        guard range.location >= 0, range.length >= 0 else { return nil }
+        let nsRange = NSRange(location: range.location, length: range.length)
+        guard let swiftRange = Range(nsRange, in: value) else { return nil }
+        return String(value[swiftRange])
     }
 }
 

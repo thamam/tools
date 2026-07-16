@@ -111,8 +111,38 @@ func testEditorReturnKeyPolicyMapsKeyboardNavigation() throws {
     )
 }
 
-func testVersionIsBumpedForKeyboardWorkflow() throws {
-    try expect(TextPilotVersion.current == "0.2.1", "version should be bumped for keyboard workflow changes")
+func testTextSelectionReplacerReplacesUtf16Range() throws {
+    let value = "hello brave world"
+    let range = TextReplacementRange(location: 6, length: 5)
+
+    let updated = TextSelectionReplacer.replacingSelection(in: value, range: range, with: "clear")
+
+    try expect(updated == "hello clear world", "replacement should update only the selected range")
+}
+
+func testTextSelectionReplacerHandlesEmojiUtf16Range() throws {
+    let value = "fix 🙂 text"
+    let range = TextReplacementRange(location: 4, length: 2)
+
+    let selected = TextSelectionReplacer.selectedText(in: value, range: range)
+    let updated = TextSelectionReplacer.replacingSelection(in: value, range: range, with: "that")
+
+    try expect(selected == "🙂", "selection should respect UTF-16 AX ranges")
+    try expect(updated == "fix that text", "replacement should not corrupt emoji boundaries")
+}
+
+func testTextSelectionReplacerRejectsInvalidRange() throws {
+    let updated = TextSelectionReplacer.replacingSelection(
+        in: "short",
+        range: TextReplacementRange(location: 20, length: 5),
+        with: "replacement"
+    )
+
+    try expect(updated == nil, "invalid AX ranges should not produce replacement text")
+}
+
+func testVersionIsBumpedForAccessibilityReplacement() throws {
+    try expect(TextPilotVersion.current == "0.2.2", "version should be bumped for accessibility replacement changes")
 }
 
 func testSelectedTextValidatorRejectsBlankInput() throws {
@@ -239,7 +269,10 @@ enum SpecRunner {
             ("custom rewrite operation prompt uses one-off instruction", { try testCustomRewriteOperationPromptUsesOneOffInstruction() }),
             ("history buffer keeps most recent twenty entries", { try testHistoryBufferKeepsMostRecentTwentyEntries() }),
             ("editor return key policy maps keyboard navigation", { try testEditorReturnKeyPolicyMapsKeyboardNavigation() }),
-            ("version is bumped for keyboard workflow", { try testVersionIsBumpedForKeyboardWorkflow() }),
+            ("text selection replacer replaces UTF-16 range", { try testTextSelectionReplacerReplacesUtf16Range() }),
+            ("text selection replacer handles emoji UTF-16 range", { try testTextSelectionReplacerHandlesEmojiUtf16Range() }),
+            ("text selection replacer rejects invalid range", { try testTextSelectionReplacerRejectsInvalidRange() }),
+            ("version is bumped for accessibility replacement", { try testVersionIsBumpedForAccessibilityReplacement() }),
             ("selected text validator rejects blank input", { try testSelectedTextValidatorRejectsBlankInput() }),
             ("selected text validator trims input", { try testSelectedTextValidatorTrimsInput() }),
             ("OpenAI client sends prompt and parses returned text", testOpenAIClientSendsPromptAndParsesReturnedText),

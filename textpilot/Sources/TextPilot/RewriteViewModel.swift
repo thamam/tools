@@ -14,6 +14,7 @@ final class RewriteViewModel: ObservableObject {
     @Published var debugStatus = ""
     @Published var debugResponseBody = ""
 
+    private let capturedSelectedText: String
     private let settingsStore: SettingsStore
     private let historyStore: HistoryStore
     private let selectionCaptureService: SelectionCaptureService
@@ -32,6 +33,7 @@ final class RewriteViewModel: ObservableObject {
         selectionCaptureService: SelectionCaptureService
     ) {
         self.originalText = originalText
+        self.capturedSelectedText = originalText
         self.errorMessage = initialError
         self.selectedAction = selectedAction
         self.customInstruction = customInstruction
@@ -120,15 +122,29 @@ final class RewriteViewModel: ObservableObject {
         closePanel()
     }
 
-    func replaceSelection() async {
-        guard !outputText.isEmpty else { return }
-        await selectionCaptureService.replaceSelection(with: outputText, in: sourceApplication)
+    @discardableResult
+    func replaceSelection() async -> Bool {
+        guard !outputText.isEmpty else { return false }
+        let report = await selectionCaptureService.replaceSelection(
+            with: outputText,
+            expectedSelectedText: capturedSelectedText,
+            in: sourceApplication
+        )
+        debugStatus = "Replacement - \(report.method.rawValue)"
+        debugResponseBody = [debugResponseBody, report.logLine]
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
+        if !report.succeeded {
+            errorMessage = report.message
+        }
+        return report.succeeded
     }
 
     func replaceAndClose() async {
         guard !outputText.isEmpty else { return }
-        await replaceSelection()
-        closePanel()
+        if await replaceSelection() {
+            closePanel()
+        }
     }
 
     private func mockResponse(output: String, text: String, operation: RewriteOperation, profile: PromptProfile) -> RewriteResponse {
