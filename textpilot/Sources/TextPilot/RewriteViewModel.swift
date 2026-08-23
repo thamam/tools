@@ -10,6 +10,7 @@ final class RewriteViewModel: ObservableObject {
     @Published var customInstruction = ""
     @Published var isLoading = false
     @Published var errorMessage: String?
+    @Published var fallbackNotice: String?
     @Published var debugRequestBody = ""
     @Published var debugStatus = ""
     @Published var debugResponseBody = ""
@@ -134,6 +135,12 @@ final class RewriteViewModel: ObservableObject {
         debugResponseBody = [debugResponseBody, report.logLine]
             .filter { !$0.isEmpty }
             .joined(separator: "\n")
+        fallbackNotice = report.usedFallback
+            ? "Used Cmd+V fallback instead of a direct edit: \(report.message)"
+            : nil
+        if report.usedFallback {
+            historyStore.markMostRecentEntryUsedFallback()
+        }
         if !report.succeeded {
             errorMessage = report.message
         }

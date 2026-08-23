@@ -46,15 +46,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var rewritePanelController: RewritePanelController?
     private var settingsWindowController: NSWindowController?
     private var hotKeyManager: HotKeyManager?
+    private var servicesProvider: TextPilotServicesProvider?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        requestAccessibilityPermissionIfNeeded()
+
         hotKeyManager = HotKeyManager { [weak self] invocation in
             Task { @MainActor in
                 self?.rewriteSelection(action: invocation.action, autoRun: invocation.autoRun)
             }
         }
         hotKeyManager?.register()
+
+        let provider = TextPilotServicesProvider(settingsStore: settingsStore)
+        servicesProvider = provider
+        NSApp.servicesProvider = provider
+    }
+
+    private func requestAccessibilityPermissionIfNeeded() {
+        // Swift 6 strict concurrency flags the imported `kAXTrustedCheckOptionPrompt`
+        // C global as unsafe shared mutable state; its string value is a stable,
+        // documented constant, so use the literal directly instead.
+        let options = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
+        if !AXIsProcessTrustedWithOptions(options) {
+            NSLog("TextPilot: Accessibility permission not yet granted — system prompt requested. Grant it in System Settings > Privacy & Security > Accessibility, then restart TextPilot.")
+        }
     }
 
     func rewriteSelection(action: RewriteActionSelection, autoRun: Bool) {

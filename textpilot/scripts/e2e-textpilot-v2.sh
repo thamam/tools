@@ -113,7 +113,7 @@ if [[ "$WINDOW_TEXT" != *"Shorten"* || "$WINDOW_TEXT" != *"$MOCK_OUTPUT"* ]]; th
 fi
 
 osascript -e 'tell application "System Events" to key code 36 using {option down}'
-sleep 1.5
+sleep 2.5
 HOST_TEXT="$(cat "$HOST_OUTPUT")"
 if [[ "$HOST_TEXT" != "$MOCK_OUTPUT" ]]; then
   echo "FAIL replace-close: expected host text '$MOCK_OUTPUT' but got '$HOST_TEXT'" >&2

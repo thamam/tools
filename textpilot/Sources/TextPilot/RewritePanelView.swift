@@ -74,6 +74,12 @@ struct RewritePanelView: View {
                     .font(.callout)
             }
 
+            if let fallbackNotice = viewModel.fallbackNotice {
+                Text(fallbackNotice)
+                    .foregroundStyle(.orange)
+                    .font(.callout)
+            }
+
             HStack {
                 Button("Retry") {
                     runRewrite()
@@ -125,6 +131,11 @@ struct RewritePanelView: View {
                                             Text(entry.profileName)
                                                 .font(.caption)
                                                 .foregroundStyle(.secondary)
+                                            if entry.usedFallbackReplacement {
+                                                Text("⚠ paste fallback")
+                                                    .font(.caption2)
+                                                    .foregroundStyle(.orange)
+                                            }
                                             Spacer()
                                             Button("Copy") {
                                                 viewModel.copyHistoryEntry(entry)
@@ -171,6 +182,9 @@ struct RewritePanelView: View {
         }
         .padding(20)
         .frame(minWidth: 700, minHeight: 680)
+        .onChange(of: viewModel.fallbackNotice) { _, newValue in
+            if newValue != nil { showingDebugLogs = true }
+        }
     }
 
     private func handleReturnAction(_ action: EditorReturnKeyAction) {

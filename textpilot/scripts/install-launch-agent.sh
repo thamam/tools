@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PLIST_PATH="$HOME/Library/LaunchAgents/com.textpilot.dev.plist"
-SWIFT_PATH="$(command -v swift)"
+BINARY_PATH="/Applications/TextPilot.app/Contents/MacOS/TextPilot"
+
+[ -x "$BINARY_PATH" ] || { echo "error: $BINARY_PATH not found — run scripts/build-app.sh first" >&2; exit 1; }
 
 mkdir -p "$HOME/Library/LaunchAgents"
 
@@ -16,14 +17,8 @@ cat > "$PLIST_PATH" <<PLIST
     <string>com.textpilot.dev</string>
     <key>ProgramArguments</key>
     <array>
-        <string>$SWIFT_PATH</string>
-        <string>run</string>
-        <string>--build-path</string>
-        <string>/private/tmp/textpilot-build</string>
-        <string>TextPilot</string>
+        <string>$BINARY_PATH</string>
     </array>
-    <key>WorkingDirectory</key>
-    <string>$PROJECT_DIR</string>
     <key>RunAtLoad</key>
     <true/>
     <key>KeepAlive</key>
@@ -40,5 +35,5 @@ launchctl bootout gui/"$(id -u)" "$PLIST_PATH" >/dev/null 2>&1 || true
 launchctl bootstrap gui/"$(id -u)" "$PLIST_PATH"
 launchctl enable gui/"$(id -u)"/com.textpilot.dev
 
-echo "Installed TextPilot LaunchAgent: $PLIST_PATH"
+echo "Installed TextPilot LaunchAgent: $PLIST_PATH -> $BINARY_PATH"
 echo "Logs: /tmp/textpilot.out.log and /tmp/textpilot.err.log"

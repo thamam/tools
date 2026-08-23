@@ -132,20 +132,38 @@ public enum RewriteOperation: Equatable, Sendable {
 }
 
 public struct RewriteHistoryEntry: Codable, Equatable, Identifiable, Sendable {
+    private enum CodingKeys: String, CodingKey {
+        case id, timestamp, operationName, profileName, originalText, outputText, usedFallbackReplacement
+    }
+
     public let id: String
     public let timestamp: Date
     public let operationName: String
     public let profileName: String
     public let originalText: String
     public let outputText: String
+    public var usedFallbackReplacement: Bool
 
-    public init(id: String = UUID().uuidString, timestamp: Date = Date(), operationName: String, profileName: String, originalText: String, outputText: String) {
+    public init(id: String = UUID().uuidString, timestamp: Date = Date(), operationName: String, profileName: String, originalText: String, outputText: String, usedFallbackReplacement: Bool = false) {
         self.id = id
         self.timestamp = timestamp
         self.operationName = operationName
         self.profileName = profileName
         self.originalText = originalText
         self.outputText = outputText
+        self.usedFallbackReplacement = usedFallbackReplacement
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        timestamp = try container.decode(Date.self, forKey: .timestamp)
+        operationName = try container.decode(String.self, forKey: .operationName)
+        profileName = try container.decode(String.self, forKey: .profileName)
+        originalText = try container.decode(String.self, forKey: .originalText)
+        outputText = try container.decode(String.self, forKey: .outputText)
+        // Absent in history persisted before this field existed.
+        usedFallbackReplacement = try container.decodeIfPresent(Bool.self, forKey: .usedFallbackReplacement) ?? false
     }
 }
 

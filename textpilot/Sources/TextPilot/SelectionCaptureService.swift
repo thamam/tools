@@ -23,6 +23,10 @@ struct SelectionReplacementReport {
         method != .failed
     }
 
+    var usedFallback: Bool {
+        method == .pasteFallback
+    }
+
     var logLine: String {
         [
             "method=\(method.rawValue)",
@@ -59,7 +63,7 @@ final class SelectionCaptureService {
     func replaceSelection(with text: String, expectedSelectedText: String?, in sourceApplication: NSRunningApplication?) async -> SelectionReplacementReport {
         NSApp.hide(nil)
         sourceApplication?.activate(options: [.activateAllWindows])
-        try? await Task.sleep(nanoseconds: 800_000_000)
+        await waitForSourceApplicationReady(sourceApplication)
 
         let directAttempt = attemptAccessibilityReplacement(
             with: text,
@@ -75,6 +79,11 @@ final class SelectionCaptureService {
             logReplacement(directAttempt)
             return directAttempt
         }
+
+        // The AX attempt above already re-reads state, so it can tell us it
+        // failed. A synthesized Cmd+V has no such verification, so give the
+        // source app one more short window to be frontmost before pasting blind.
+        await waitForSourceApplicationReady(sourceApplication, timeout: 0.15, pollInterval: 0.05)
 
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
@@ -94,6 +103,39 @@ final class SelectionCaptureService {
 
     func replaceSelection(with text: String, in sourceApplication: NSRunningApplication?) async {
         _ = await replaceSelection(with: text, expectedSelectedText: nil, in: sourceApplication)
+    }
+
+    /// Polls until `sourceApplication` is frontmost and (when Accessibility is
+    /// trusted) reports a focused AX element, instead of trusting a fixed delay.
+    /// Slow-to-refocus apps (Electron/web views) can take longer than any single
+    /// fixed sleep to settle after `activate(options:)`.
+    private func waitForSourceApplicationReady(
+        _ sourceApplication: NSRunningApplication?,
+        timeout: TimeInterval = 1.5,
+        pollInterval: TimeInterval = 0.05
+    ) async {
+        guard let sourceApplication else {
+            try? await Task.sleep(nanoseconds: 150_000_000)
+            return
+        }
+        let pid = sourceApplication.processIdentifier
+        let deadline = Date().addingTimeInterval(timeout)
+
+        while Date() < deadline {
+            if NSWorkspace.shared.frontmostApplication?.processIdentifier == pid {
+                // Without trust, AX reads can never succeed — stop as soon as
+                // frontmost is confirmed rather than burning the full timeout.
+                guard AXIsProcessTrusted() else { return }
+
+                let appElement = AXUIElementCreateApplication(pid)
+                var focused: CFTypeRef?
+                let error = AXUIElementCopyAttributeValue(appElement, kAXFocusedUIElementAttribute as CFString, &focused)
+                if error == .success, focused != nil {
+                    return
+                }
+            }
+            try? await Task.sleep(nanoseconds: UInt64(pollInterval * 1_000_000_000))
+        }
     }
 
     private func attemptAccessibilityReplacement(with text: String, expectedSelectedText: String?, in sourceApplication: NSRunningApplication?) -> SelectionReplacementReport {
@@ -129,7 +171,11 @@ final class SelectionCaptureService {
 
         if let selectedText, matchesSelection(selectedText, expected: expected) {
             let setSelectedError = AXUIElementSetAttributeValue(focusedElement, kAXSelectedTextAttribute as CFString, text as CFString)
-            if setSelectedError == .success {
+            // Some AX servers (terminal emulators in particular — their content
+            // is PTY-driven, not a normal editable buffer) accept this write and
+            // report .success without it actually changing anything on screen.
+            // Re-read to confirm the selection actually moved before trusting it.
+            if setSelectedError == .success, copyStringAttribute(kAXSelectedTextAttribute, from: focusedElement) != expected {
                 return SelectionReplacementReport(
                     method: .accessibilityDirect,
                     targetApplicationName: targetName,
@@ -161,6 +207,9 @@ final class SelectionCaptureService {
         guard setValueError == .success else {
             return failedReport(targetName: targetName, sourceApplication: sourceApplication, role: role, message: "setting focused value failed: \(setValueError)")
         }
+        guard copyStringAttribute(kAXValueAttribute, from: focusedElement) == updatedValue else {
+            return failedReport(targetName: targetName, sourceApplication: sourceApplication, role: role, message: "focused value did not change after write (unsupported by app)")
+        }
 
         setSelectedRange(TextReplacementRange(location: selectedRange.location + text.utf16.count, length: 0), on: focusedElement)
         return SelectionReplacementReport(
@@ -190,8 +239,20 @@ final class SelectionCaptureService {
 
     private func copyStringAttribute(_ attribute: String, from element: AXUIElement) -> String? {
         let result = copyAttribute(attribute, from: element)
-        guard result.error == .success else { return nil }
-        return result.value as? String
+        guard result.error == .success, let value = result.value else { return nil }
+
+        if let string = value as? String {
+            return string
+        }
+        // Rich-text-capable fields (e.g. Mail compose) can hand back an
+        // attributed value instead of a plain String.
+        if let attributed = value as? NSAttributedString {
+            return attributed.string
+        }
+        if CFGetTypeID(value) == CFAttributedStringGetTypeID() {
+            return CFAttributedStringGetString((value as! CFAttributedString)) as String
+        }
+        return nil
     }
 
     private func copySelectedRange(from element: AXUIElement) -> TextReplacementRange? {
@@ -238,6 +299,8 @@ final class SelectionCaptureService {
     }
 
     private func logReplacement(_ report: SelectionReplacementReport) {
+        NSLog("TextPilot replacement: \(report.logLine)")
+
         guard let path = ProcessInfo.processInfo.environment["TEXTPILOT_REPLACEMENT_LOG"], !path.isEmpty else { return }
         let line = report.logLine + "\n"
         guard let data = line.data(using: .utf8) else { return }

@@ -25,6 +25,13 @@ final class HistoryStore: ObservableObject {
         save()
     }
 
+    func markMostRecentEntryUsedFallback() {
+        guard var first = entries.first else { return }
+        first.usedFallbackReplacement = true
+        entries[0] = first
+        save()
+    }
+
     func copy(_ entry: RewriteHistoryEntry) {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
