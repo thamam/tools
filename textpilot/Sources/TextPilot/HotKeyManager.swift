@@ -32,6 +32,7 @@ final class HotKeyManager {
         HotKeyDefinition(id: 4, keyCode: kVK_ANSI_S, carbonModifiers: UInt32(controlKey | optionKey), eventFlags: [.maskControl, .maskAlternate], action: .shorten, autoRun: true, label: "Control+Option+S"),
         HotKeyDefinition(id: 5, keyCode: kVK_ANSI_P, carbonModifiers: UInt32(controlKey | optionKey), eventFlags: [.maskControl, .maskAlternate], action: .professional, autoRun: true, label: "Control+Option+P"),
         HotKeyDefinition(id: 6, keyCode: kVK_ANSI_L, carbonModifiers: UInt32(controlKey | optionKey), eventFlags: [.maskControl, .maskAlternate], action: .casual, autoRun: true, label: "Control+Option+L"),
+        HotKeyDefinition(id: 8, keyCode: kVK_ANSI_D, carbonModifiers: UInt32(controlKey | optionKey), eventFlags: [.maskControl, .maskAlternate], action: .deAI, autoRun: true, label: "Control+Option+D"),
         HotKeyDefinition(id: 7, keyCode: kVK_ANSI_K, carbonModifiers: UInt32(controlKey | optionKey), eventFlags: [.maskControl, .maskAlternate], action: .custom, autoRun: false, label: "Control+Option+K")
     ]
 

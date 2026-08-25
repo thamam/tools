@@ -41,6 +41,11 @@ import TextPilotCore
         perform(mode: .casual, pasteboard: pasteboard, error: error)
     }
 
+    @objc(deAIService:userData:error:)
+    func deAIService(_ pasteboard: NSPasteboard, userData: String, error: AutoreleasingUnsafeMutablePointer<NSString>) {
+        perform(mode: .deAI, pasteboard: pasteboard, error: error)
+    }
+
     /// Reference type so the write from the detached Task is visible to the
     /// caller after `semaphore.wait()` returns; the semaphore is the
     /// happens-before edge, `@unchecked Sendable` documents that trade-off.

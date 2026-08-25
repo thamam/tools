@@ -74,6 +74,7 @@ public enum RewriteMode: String, CaseIterable, Codable, Identifiable, Sendable {
     case shorten
     case professional
     case casual
+    case deAI
 
     public var id: String { rawValue }
 
@@ -89,6 +90,8 @@ public enum RewriteMode: String, CaseIterable, Codable, Identifiable, Sendable {
             "Professional"
         case .casual:
             "Casual"
+        case .deAI:
+            "deAI"
         }
     }
 
@@ -104,6 +107,29 @@ public enum RewriteMode: String, CaseIterable, Codable, Identifiable, Sendable {
             "Rewrite this in a professional tone while preserving the original meaning."
         case .casual:
             "Rewrite this in a casual, natural tone while preserving the original meaning."
+        case .deAI:
+            """
+            Strip the signature of machine-written prose from the text below. Rewrite it so it reads as if a careful human wrote it in one sitting.
+
+            Work sentence by sentence. For each sentence, decide what it actually tells the reader. If the answer is nothing, delete the sentence. If the answer is something, rebuild the sentence from that content in plain words, as short as it can be said. Do not edit around the original wording; write the sentence again.
+
+            Rules:
+            Keep every fact, claim, number, name, and quotation, and keep the order of the argument. Add nothing.
+            Write in the language of the original. The English phrases below are examples of categories, not a word list. In any other language, find the phrases that play the same role and cut those: the stock opener about the fast-paced modern world, the "it is worth noting" hedge, the closer that summarizes what was just said, the run of three adjectives of praise, the offer of further help. In Hebrew these sound like "בעולם המהיר של ימינו", "ראוי לציין", "חשוב מאין כמותו", "לסיכום", "פתרון חזק, גמיש ומקיף", "אני מקווה שזה עוזר".
+            Cut throat-clearing and filler openers: "it's worth noting", "importantly", "in today's fast-paced world", "let's dive in", "I wanted to reach out", "I'm writing to", "more important than ever".
+            Cut any run of three whose third item is there for rhythm, including adjective strings like "strengths, weaknesses, and trade-offs" and "flexible, scalable, and reliable". Keep only the items that carry information.
+            Cut vague praise and filler verbs: "robust", "seamless", "powerful", "comprehensive", "cutting-edge", "vibrant", "delve", "leverage", "navigate", "landscape", "tapestry", "testament to", "has emerged as". Say the concrete thing instead, or say nothing.
+            Cut promotional closers and generic sign-offs: "will serve you well for years to come", "is a solid choice", "the possibilities are endless", calls to action, and offers of further help.
+            Cut "not X, but Y" constructions and em-dashes used for drama.
+            Cut bold phrases used as inline pseudo-headers inside a paragraph. Keep the headers, lists, code blocks, and line breaks that are part of the document's own structure.
+            Vary sentence length. Some sentences should be under eight words.
+            Keep the author's voice, contractions, register, markdown, and punctuation characters. Do not introduce curly quotes or em-dashes.
+            If a passage already reads as human, return it unchanged, word for word.
+
+            Before you answer, read your rewrite once and delete anything in it that still matches a rule above.
+
+            Return the rewritten text only, with no commentary.
+            """
         }
     }
 }

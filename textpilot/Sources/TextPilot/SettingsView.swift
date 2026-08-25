@@ -34,7 +34,7 @@ struct SettingsView: View {
             profileEditor
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("Global shortcuts: Ctrl+Opt+R open, G grammar, C clear, S shorten, P professional, L casual, K custom")
+                Text("Global shortcuts: Ctrl+Opt+R open, G grammar, C clear, S shorten, P professional, L casual, D deAI, K custom")
                 Text("Panel shortcuts: Return run, Shift+Return newline, Cmd+Return copy and close, Opt+Return replace and close")
             }
             .foregroundStyle(.secondary)

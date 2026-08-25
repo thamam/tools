@@ -7,6 +7,7 @@ enum RewriteActionSelection: String, CaseIterable, Identifiable {
     case shorten
     case professional
     case casual
+    case deAI
     case custom
 
     var id: String { rawValue }
@@ -23,6 +24,8 @@ enum RewriteActionSelection: String, CaseIterable, Identifiable {
             "Professional"
         case .casual:
             "Casual"
+        case .deAI:
+            "deAI"
         case .custom:
             "Custom"
         }
@@ -40,6 +43,8 @@ enum RewriteActionSelection: String, CaseIterable, Identifiable {
             .professional
         case .casual:
             .casual
+        case .deAI:
+            .deAI
         case .custom:
             nil
         }

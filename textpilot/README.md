@@ -5,7 +5,7 @@ TextPilot v0.2.2 is a native SwiftUI macOS menu-bar utility for rewriting select
 ## MVP Flow
 
 1. Select text in any app.
-2. Press `Control + Option + R`, or use an action shortcut: `G` grammar, `C` clear, `S` shorten, `P` professional, `L` casual, `K` custom with `Control + Option`.
+2. Press `Control + Option + R`, or use an action shortcut: `G` grammar, `C` clear, `S` shorten, `P` professional, `L` casual, `D` deAI, `K` custom with `Control + Option`.
 3. TextPilot copies the selected text, restores your previous clipboard, and opens a floating panel.
 4. Pick a rewrite action. Press `Return` to run from an editor, or `Shift + Return` to insert a newline.
 5. The generated alternative is copied automatically.

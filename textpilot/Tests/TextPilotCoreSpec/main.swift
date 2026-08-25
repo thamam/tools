@@ -258,6 +258,30 @@ func unwrap<T>(_ value: T?, _ message: String) throws -> T {
     return value
 }
 
+func testDeAIPromptCarriesRewriteRulesAndSelectedText() throws {
+    let prompt = RewritePromptFactory.prompt(
+        for: .deAI,
+        text: "It is worth noting that this is a robust solution."
+    )
+
+    try expect(
+        prompt.user.contains("Strip the signature of machine-written prose"),
+        "deAI prompt should include the de-AI instruction"
+    )
+    try expect(
+        prompt.user.contains("Write in the language of the original."),
+        "deAI prompt should preserve the source language"
+    )
+    try expect(
+        prompt.user.contains("It is worth noting that this is a robust solution."),
+        "deAI prompt should include original selected text"
+    )
+    try expect(
+        RewriteMode.deAI.displayName == "deAI",
+        "deAI mode should be labeled deAI in the UI"
+    )
+}
+
 @main
 enum SpecRunner {
     static func main() async {
@@ -266,6 +290,7 @@ enum SpecRunner {
             ("all rewrite modes have display names and instructions", { try testAllRewriteModesHaveDisplayNamesAndInstructions() }),
             ("default prompt profile is read-only and complete", { try testDefaultPromptProfileIsReadOnlyAndContainsAllPrompts() }),
             ("prompt factory uses custom profile prompt", { try testPromptFactoryUsesCustomProfilePrompt() }),
+            ("deAI prompt carries rewrite rules and selected text", { try testDeAIPromptCarriesRewriteRulesAndSelectedText() }),
             ("custom rewrite operation prompt uses one-off instruction", { try testCustomRewriteOperationPromptUsesOneOffInstruction() }),
             ("history buffer keeps most recent twenty entries", { try testHistoryBufferKeepsMostRecentTwentyEntries() }),
             ("editor return key policy maps keyboard navigation", { try testEditorReturnKeyPolicyMapsKeyboardNavigation() }),
