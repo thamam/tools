@@ -141,8 +141,8 @@ func testTextSelectionReplacerRejectsInvalidRange() throws {
     try expect(updated == nil, "invalid AX ranges should not produce replacement text")
 }
 
-func testVersionIsBumpedForAccessibilityReplacement() throws {
-    try expect(TextPilotVersion.current == "0.2.2", "version should be bumped for accessibility replacement changes")
+func testVersionIsBumpedForDeAIMode() throws {
+    try expect(TextPilotVersion.current == "0.2.3", "version should be bumped for the deAI rewrite mode")
 }
 
 func testSelectedTextValidatorRejectsBlankInput() throws {
@@ -297,7 +297,7 @@ enum SpecRunner {
             ("text selection replacer replaces UTF-16 range", { try testTextSelectionReplacerReplacesUtf16Range() }),
             ("text selection replacer handles emoji UTF-16 range", { try testTextSelectionReplacerHandlesEmojiUtf16Range() }),
             ("text selection replacer rejects invalid range", { try testTextSelectionReplacerRejectsInvalidRange() }),
-            ("version is bumped for accessibility replacement", { try testVersionIsBumpedForAccessibilityReplacement() }),
+            ("version is bumped for deAI mode", { try testVersionIsBumpedForDeAIMode() }),
             ("selected text validator rejects blank input", { try testSelectedTextValidatorRejectsBlankInput() }),
             ("selected text validator trims input", { try testSelectedTextValidatorTrimsInput() }),
             ("OpenAI client sends prompt and parses returned text", testOpenAIClientSendsPromptAndParsesReturnedText),

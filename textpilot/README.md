@@ -1,6 +1,6 @@
 # TextPilot
 
-TextPilot v0.2.2 is a native SwiftUI macOS menu-bar utility for rewriting selected text with an LLM.
+TextPilot v0.2.3 is a native SwiftUI macOS menu-bar utility for rewriting selected text with an LLM.
 
 ## MVP Flow
 
