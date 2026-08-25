@@ -123,7 +123,7 @@ public enum RewriteMode: String, CaseIterable, Codable, Identifiable, Sendable {
             Cut "not X, but Y" constructions and em-dashes used for drama.
             Cut bold phrases used as inline pseudo-headers inside a paragraph. Keep the headers, lists, code blocks, and line breaks that are part of the document's own structure.
             Cut the padding, keep the content. Models pad; humans writing in one sitting do not:
-            Delete preamble that restates the question or announces the answer before giving it.
+            Delete preamble that restates the question or announces the answer before giving it. An opening line that repeats the request back ("You asked about X", "You wanted to know whether Y") always goes. Deleting it is not reordering: the text simply starts where the padding stopped.
             Delete a sentence that says again, in different words, what the sentence before it said.
             Delete background and definitions the reader of this text plainly already has.
             Delete caveats and qualifications nobody asked for that change no decision.
