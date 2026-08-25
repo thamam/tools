@@ -122,6 +122,16 @@ public enum RewriteMode: String, CaseIterable, Codable, Identifiable, Sendable {
             Cut promotional closers and generic sign-offs: "will serve you well for years to come", "is a solid choice", "the possibilities are endless", calls to action, and offers of further help.
             Cut "not X, but Y" constructions and em-dashes used for drama.
             Cut bold phrases used as inline pseudo-headers inside a paragraph. Keep the headers, lists, code blocks, and line breaks that are part of the document's own structure.
+            Cut the padding, keep the content. Models pad; humans writing in one sitting do not:
+            Delete preamble that restates the question or announces the answer before giving it.
+            Delete a sentence that says again, in different words, what the sentence before it said.
+            Delete background and definitions the reader of this text plainly already has.
+            Delete caveats and qualifications nobody asked for that change no decision.
+            Collapse softening clauses: "it may be worth considering that X" becomes "X".
+            Use a plain sentence instead of a bulleted list when the items are not discrete things.
+            Never delete a fact, number, claim, or recommendation to make the text shorter. Compress the prose, not the content. If the text is already tight, it stays the same length.
+            Do not hoist the conclusion to the top, and do not add a summary line at either end. Cutting padding is not reordering: the argument stays in the order the author put it, and a point made once is not made again.
+
             Vary sentence length. Some sentences should be under eight words.
             Keep the author's voice, contractions, register, markdown, and punctuation characters. Do not introduce curly quotes or em-dashes.
             If a passage already reads as human, return it unchanged, word for word.
